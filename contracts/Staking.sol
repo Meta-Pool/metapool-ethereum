@@ -4,7 +4,7 @@ pragma solidity ^0.8;
 import "@openzeppelin/contracts/utils/Counters.sol";
 
 /*
-Contratos:
+Contracts:
     - Staking
     - mpETH is ERC20
     - LiquidUnstake
@@ -19,9 +19,9 @@ contract Staking {
 
     // Brainstormig
     /*
-        Contrato recibe ETH hasta tener al menos 32
-        Con deposito que llegue a 32 los deposita en el nodo
-        Pasa al siguiente nodo
+        Contract receives ETH until have at least 32.
+        Once 32 ETH, deposit into the node
+        Pass to next node
     */
     // Opt 1
     struct Node {
@@ -30,7 +30,6 @@ contract Staking {
         bytes signature;
         bytes32 depositDataRoot;
     }
-    // TODO: Test gas add 10 thousand nodes
     mapping(uint => Node) public nodesByStruct;
 
     // Opt 2
