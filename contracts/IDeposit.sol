@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8;
+
+interface IDeposit {
+    function deposit(
+        bytes memory pubkey,
+        bytes memory withdrawal_credentials,
+        bytes memory signature,
+        bytes32 deposit_data_root
+    ) external payable;
+}

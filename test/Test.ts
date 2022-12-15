@@ -20,7 +20,11 @@ describe("Staking", function () {
   async function deployTest() {
     const [owner, otherAccount] = await ethers.getSigners();
     const Staking = await ethers.getContractFactory("Staking");
-    const staking = await Staking.deploy(...testArguments);
+    const staking = await Staking.deploy(
+      DEPOSIT_CONTRACT_ADDRESS,
+      [[...testArguments], [...testArguments], [...testArguments]],
+      { value: toEthers(64) }
+    );
 
     return { staking, owner, otherAccount };
   }
@@ -35,7 +39,7 @@ describe("Staking", function () {
       await expect(
         depositContract
           .connect(owner)
-          .deposit(...testArguments, { value: toEthers("0") })
+          .deposit(...testArguments, { value: toEthers(0) })
       ).to.be.revertedWith("DepositContract: deposit value too low");
     });
 
@@ -48,16 +52,16 @@ describe("Staking", function () {
 
       await depositContract
         .connect(owner)
-        .deposit(...testArguments, { value: toEthers("32") });
+        .deposit(...testArguments, { value: toEthers(32) });
     });
   });
 
-  describe("Staking deposit metapool contract", function () {
-    it("Add 10k nodes", async () => {
+  describe("Add new nodes", function () {
+    it("Add 10 nodes", async () => {
       const { owner, staking } = await loadFixture(deployTest);
 
-      for (let i = 1; i < 1000; i++) {
-        await staking.addNode(i, ...testArguments);
+      for (let i = 3; i < 10; i++) {
+        await staking.updateNode(i, [...testArguments]);
       }
     });
   });

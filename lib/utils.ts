@@ -1,7 +1,5 @@
 import { ethers } from "hardhat";
 
-const toEthers = (amount: string) => ethers.utils.parseEther(amount)
+const toEthers = (amount: Number) => ethers.utils.parseEther(amount.toString());
 
-export {
-    toEthers
-}
+export { toEthers };
