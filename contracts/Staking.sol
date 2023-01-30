@@ -19,6 +19,7 @@ contract Staking is Ownable {
     IDeposit public immutable depositContract;
     MetaPoolETH public immutable mpETH;
     uint public currentNode;
+    uint public nodesTotalBalance;
 
     constructor(IDeposit _depositContract, Node[] memory _nodes) payable {
         require(address(this).balance % 32 ether == 0, "Invalid ETH amount");
@@ -26,7 +27,8 @@ contract Staking is Ownable {
         uint nodesLength = _nodes.length;
         require(newNodesAmount >= 2, "Deposit at least 64 ETH");
         require(newNodesAmount < nodesLength, "ETH amount gt nodes");
-        for (uint i = 0; i < newNodesAmount; i++) {
+        uint i = 0;
+        for (; i < newNodesAmount; i++) {
             nodes[i] = _nodes[i];
             _depositContract.deposit{value: 32 ether}(
                 _nodes[i].pubkey,
@@ -35,9 +37,7 @@ contract Staking is Ownable {
                 _nodes[i].depositDataRoot
             );
         }
-        for (uint i = newNodesAmount; i < nodesLength; i++) {
-            nodes[i] = _nodes[i];
-        }
+        for (; i < nodesLength; i++) nodes[i] = _nodes[i];
         mpETH = new MetaPoolETH();
         mpETH.mint(address(this), newNodesAmount * 1e18);
         currentNode = newNodesAmount;
@@ -53,7 +53,26 @@ contract Staking is Ownable {
         nodes[_nodeId] = _node;
     }
 
-    function depositETH() external payable {}
+    function stake() external payable {
+        // Check msg.value
+        // If msg.value + balance > 32 init for loop
+        // Get mpETH from LiquidUnstakePool if any
+        // Mint mpETH if needed to user
+    }
+
+    /// @notice Returns mpETH price in ETH againts nodes balance
+    /// Starts in 1 and should increase with the nodes rewards
+    function getmpETHPrice() public view returns (uint) {
+        return (nodesTotalBalance == 0
+            ? 1
+            : nodesTotalBalance / mpETH.totalSupply()
+        )
+    }
+
+    /// @notice Updates nodes total balance
+    function updateNodesBalance(uint _newBalance) external onlyOwner {
+        nodesTotalBalance = _newBalance;
+    }
 
     // Cons: Breaks if too many users deposit at the same time
     // function depositByAddress(, , ,) external {
