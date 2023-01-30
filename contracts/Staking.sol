@@ -45,7 +45,6 @@ contract Staking is Ownable {
     }
 
     function updateNode(uint _nodeId, Node memory _node) external onlyOwner {
-        // TODO: Create error codes
         require(
             _nodeId > currentNode,
             "ERROR: Trying to update a previous node"
@@ -54,19 +53,32 @@ contract Staking is Ownable {
     }
 
     function stake() external payable {
-        // Check msg.value
-        // If msg.value + balance > 32 init for loop
-        // Get mpETH from LiquidUnstakePool if any
-        // Mint mpETH if needed to user
+        require(msg.value > 0, "Deposit must be greater than zero");
+        uint toMint = msg.value / getmpETHPrice();
+        uint newNodesAmount = address(this).balance % 32 ether;
+        if (newNodesAmount > 0) {
+            require(
+                nodes[currentNode + newNodesAmount].pubkey.length != 0,
+                "Empty node config, contact admin or deposit without stake"
+            );
+            for (uint i = currentNode; i < newNodesAmount; i++) {
+                depositContract.deposit{value: 32 ether}(
+                    nodes[i].pubkey,
+                    nodes[i].withdrawCredentials,
+                    nodes[i].signature,
+                    nodes[i].depositDataRoot
+                );
+            }
+        }
+        mpETH.mint(msg.sender, toMint);
     }
 
     /// @notice Returns mpETH price in ETH againts nodes balance
     /// Starts in 1 and should increase with the nodes rewards
     function getmpETHPrice() public view returns (uint) {
-        return (nodesTotalBalance == 0
-            ? 1
-            : nodesTotalBalance / mpETH.totalSupply()
-        )
+        return (
+            nodesTotalBalance == 0 ? 1 : nodesTotalBalance / mpETH.totalSupply()
+        );
     }
 
     /// @notice Updates nodes total balance
