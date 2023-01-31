@@ -21,6 +21,10 @@ contract Staking is Ownable {
     uint public currentNode;
     uint public nodesTotalBalance;
 
+    event Deposit(address indexed user, uint amount);
+    event Stake(uint node_index, bytes indexed pubkey);
+    event UpdateNodesBalance(uint balance);
+
     constructor(IDeposit _depositContract, Node[] memory _nodes) payable {
         require(address(this).balance % 32 ether == 0, "Invalid ETH amount");
         uint newNodesAmount = address(this).balance / 32 ether;
@@ -36,12 +40,14 @@ contract Staking is Ownable {
                 _nodes[i].signature,
                 _nodes[i].depositDataRoot
             );
+            emit Stake(i, _nodes[i].pubkey);
         }
         for (; i < nodesLength; i++) nodes[i] = _nodes[i];
         mpETH = new MetaPoolETH();
         mpETH.mint(address(this), newNodesAmount * 1e18);
         currentNode = newNodesAmount;
         depositContract = _depositContract;
+        emit Deposit(msg.sender, msg.value);
     }
 
     function updateNode(uint _nodeId, Node memory _node) external onlyOwner {
@@ -62,15 +68,18 @@ contract Staking is Ownable {
                 "Empty node config, contact admin or deposit without stake"
             );
             for (uint i = currentNode; i < newNodesAmount; i++) {
+                Node memory node = nodes[i];
                 depositContract.deposit{value: 32 ether}(
-                    nodes[i].pubkey,
-                    nodes[i].withdrawCredentials,
-                    nodes[i].signature,
-                    nodes[i].depositDataRoot
+                    node.pubkey,
+                    node.withdrawCredentials,
+                    node.signature,
+                    node.depositDataRoot
                 );
+                emit Stake(i, node.pubkey);
             }
         }
         mpETH.mint(msg.sender, toMint);
+        emit Deposit(msg.sender, msg.value);
     }
 
     /// @notice Returns mpETH price in ETH againts nodes balance
@@ -84,6 +93,7 @@ contract Staking is Ownable {
     /// @notice Updates nodes total balance
     function updateNodesBalance(uint _newBalance) external onlyOwner {
         nodesTotalBalance = _newBalance;
+        emit UpdateNodesBalance(_newBalance);
     }
 
     // Cons: Breaks if too many users deposit at the same time
