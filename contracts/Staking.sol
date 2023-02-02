@@ -3,6 +3,7 @@ pragma solidity ^0.8;
 
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./IDeposit.sol";
 import "./MetaPoolETH.sol";
 import "hardhat/console.sol";
@@ -58,28 +59,47 @@ contract Staking is Ownable {
         nodes[_nodeId] = _node;
     }
 
+    /// @notice Stake ETH in contract to validators
+    function pushToBacon(uint _nodesAmount) external {
+        _nodesAmount = Math.min(address(this).balance % 32 ether, _nodesAmount);
+        _stake(_nodesAmount, true);
+    }
+
+    /// @notice Deposit ETH user and try to stake to validator
+    // Just one at a time to avoid high costs
     function stake() external payable {
         require(msg.value > 0, "Deposit must be greater than zero");
+        // TODO: Get mpETH from pool
         uint toMint = msg.value / getmpETHPrice();
-        uint newNodesAmount = address(this).balance % 32 ether;
-        if (newNodesAmount > 0) {
-            require(
-                nodes[currentNode + newNodesAmount].pubkey.length != 0,
-                "Empty node config, contact admin or deposit without stake"
-            );
-            for (uint i = currentNode; i < newNodesAmount; i++) {
-                Node memory node = nodes[i];
-                depositContract.deposit{value: 32 ether}(
-                    node.pubkey,
-                    node.withdrawCredentials,
-                    node.signature,
-                    node.depositDataRoot
-                );
-                emit Stake(i, node.pubkey);
-            }
-        }
+        _stake(1, false);
         mpETH.mint(msg.sender, toMint);
         emit Deposit(msg.sender, msg.value);
+    }
+
+    function _stake(uint _newNodesAmount, bool _revertIfError) private {
+        uint _currentNode = currentNode;
+        if (_revertIfError) {
+            require(_newNodesAmount > 0, "Not enough ethers to stake");
+            require(
+                nodes[_currentNode + _newNodesAmount].pubkey.length != 0,
+                "Last node index is empty"
+            );
+        } else if (
+            _newNodesAmount == 0 ||
+            nodes[_currentNode + _newNodesAmount].pubkey.length == 0
+        ) return;
+
+        for (uint i = _currentNode; i < _newNodesAmount; i++) {
+            Node memory node = nodes[i];
+            depositContract.deposit{value: 32 ether}(
+                node.pubkey,
+                node.withdrawCredentials,
+                node.signature,
+                node.depositDataRoot
+            );
+            emit Stake(i, node.pubkey);
+        }
+        currentNode = _currentNode + _newNodesAmount;
     }
 
     /// @notice Returns mpETH price in ETH againts nodes balance
