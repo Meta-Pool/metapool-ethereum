@@ -23,7 +23,8 @@ contract Staking is Ownable {
     uint public nodesTotalBalance;
 
     event Deposit(address indexed user, uint amount);
-    event Stake(uint node_index, bytes indexed pubkey);
+    event Stake(uint nodeId, bytes indexed pubkey);
+    event UpdateNodeData(uint nodeId, Node data);
     event UpdateNodesBalance(uint balance);
 
     constructor(IDeposit _depositContract, Node[] memory _nodes) payable {
@@ -51,12 +52,20 @@ contract Staking is Ownable {
         emit Deposit(msg.sender, msg.value);
     }
 
+    /// @notice Update node data
     function updateNode(uint _nodeId, Node memory _node) external onlyOwner {
         require(
             _nodeId > currentNode,
             "ERROR: Trying to update a previous node"
         );
         nodes[_nodeId] = _node;
+        emit UpdateNodeData(_nodeId, _node);
+    }
+
+    /// @notice Updates nodes total balance
+    function updateNodesBalance(uint _newBalance) external onlyOwner {
+        nodesTotalBalance = _newBalance;
+        emit UpdateNodesBalance(_newBalance);
     }
 
     /// @notice Stake ETH in contract to validators
@@ -111,17 +120,4 @@ contract Staking is Ownable {
                 : (nodesTotalBalance * 1 ether) / mpETH.totalSupply()
         );
     }
-
-    /// @notice Updates nodes total balance
-    function updateNodesBalance(uint _newBalance) external onlyOwner {
-        nodesTotalBalance = _newBalance;
-        emit UpdateNodesBalance(_newBalance);
-    }
-
-    // Cons: Breaks if too many users deposit at the same time
-    // function depositByAddress(, , ,) external {
-    //     address node = nodesByAddress[currentNode];
-    //     // depositContract.deposit()
-    //     // mint mpETH token
-    // }
 }
