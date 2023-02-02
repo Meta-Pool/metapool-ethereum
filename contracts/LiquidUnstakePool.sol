@@ -32,8 +32,8 @@ contract LiquidUnstakePool is Ownable {
     function addLiquidity() external payable {
         require(msg.value > 0, "Can't deposit 0 ETH");
         uint256 totalETHValue = address(this).balance +
-            mpETH.balanceOf(address(this)) *
-            STAKING.getmpETHPrice();
+            (mpETH.balanceOf(address(this)) * STAKING.getmpETHPrice()) /
+            1 ether;
         uint256 sharesToMint = (msg.value * 1 ether) / totalETHValue;
         LP_TOKEN.mint(msg.sender, sharesToMint);
         emit AddLiquidity(msg.sender, msg.value, sharesToMint);
