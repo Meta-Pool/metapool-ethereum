@@ -106,7 +106,9 @@ contract Staking is Ownable {
     /// Starts in 1 and should increase with the nodes rewards
     function getmpETHPrice() public view returns (uint) {
         return (
-            nodesTotalBalance == 0 ? 1 : nodesTotalBalance / mpETH.totalSupply()
+            nodesTotalBalance == 0
+                ? 1 ether
+                : (nodesTotalBalance * 1 ether) / mpETH.totalSupply()
         );
     }
 
