@@ -64,6 +64,7 @@ contract Staking is Ownable {
 
     /// @notice Updates nodes total balance
     function updateNodesBalance(uint _newBalance) external onlyOwner {
+        // TODO: Track users deposit and send a percentage of rewards to MetaPool
         nodesTotalBalance = _newBalance;
         emit UpdateNodesBalance(_newBalance);
     }
@@ -71,7 +72,8 @@ contract Staking is Ownable {
     /// @notice Stake ETH in contract to validators
     function pushToBacon(uint _nodesAmount) external {
         _nodesAmount = Math.min(address(this).balance % 32 ether, _nodesAmount);
-        _stake(_nodesAmount, true);
+        require(_nodesAmount > 0, "Not enough balance or trying to push 0 nodes");
+        require(_stake(_nodesAmount), "ERROR: Node data empty at last index");
     }
 
     /// @notice Deposit ETH user and try to stake to validator
@@ -80,25 +82,18 @@ contract Staking is Ownable {
         require(msg.value > 0, "Deposit must be greater than zero");
         // TODO: Get mpETH from pool
         uint toMint = msg.value / getmpETHPrice();
-        _stake(1, false);
+        _stake(1);
         mpETH.mint(msg.sender, toMint);
         emit Deposit(msg.sender, msg.value);
     }
 
-    function _stake(uint _newNodesAmount, bool _revertIfError) private {
+    function _stake(uint _newNodesAmount) private returns(bool){
         uint _currentNode = currentNode;
-        if (_revertIfError) {
-            require(_newNodesAmount > 0, "Not enough ethers to stake");
-            require(
-                nodes[_currentNode + _newNodesAmount].pubkey.length != 0,
-                "Last node index is empty"
-            );
-        } else if (
-            _newNodesAmount == 0 ||
-            nodes[_currentNode + _newNodesAmount].pubkey.length == 0
-        ) return;
+        uint _lastNode = _currentNode + _newNodesAmount;
+        if (nodes[_lastNode].pubkey.length == 0) 
+            return false;
 
-        for (uint i = _currentNode; i < _newNodesAmount; i++) {
+        for (uint i = _currentNode; i < _lastNode; i++) {
             Node memory node = nodes[i];
             depositContract.deposit{value: 32 ether}(
                 node.pubkey,
@@ -108,7 +103,8 @@ contract Staking is Ownable {
             );
             emit Stake(i, node.pubkey);
         }
-        currentNode = _currentNode + _newNodesAmount;
+        currentNode = _lastNode;
+        return true;
     }
 
     /// @notice Returns mpETH price in ETH againts nodes balance
