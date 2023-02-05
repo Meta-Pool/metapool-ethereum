@@ -1,6 +1,7 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-gas-reporter";
+import "./tasks/eth_balance";
 
 require("dotenv").config();
 
@@ -17,7 +18,7 @@ const config: HardhatUserConfig = {
   },
   gasReporter: {
     enabled: true,
-  }
+  },
 };
 
 export default config;
