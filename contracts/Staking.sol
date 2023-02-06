@@ -4,11 +4,12 @@ pragma solidity ^0.8;
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import "./IDeposit.sol";
 import "./MetaPoolETH.sol";
-import "hardhat/console.sol";
 
-contract Staking is Ownable {
+contract Staking is ERC4626, Ownable {
     struct Node {
         bytes pubkey;
         bytes withdrawCredentials;
@@ -17,19 +18,28 @@ contract Staking is Ownable {
     }
     mapping(uint => Node) public nodes;
 
+    uint private constant MAX_DEPOSIT = 100 ether; // TODO: Define max deposit if any
     IDeposit public immutable depositContract;
-    MetaPoolETH public immutable mpETH;
     uint public currentNode;
     uint public nodesTotalBalance;
+    uint public depositsSinceLastUpdate;
 
-    event Deposit(address indexed user, uint amount);
     event Stake(uint nodeId, bytes indexed pubkey);
     event UpdateNodeData(uint nodeId, Node data);
     event UpdateNodesBalance(uint balance);
 
-    constructor(IDeposit _depositContract, Node[] memory _nodes) payable {
-        require(address(this).balance % 32 ether == 0, "Invalid ETH amount");
-        uint newNodesAmount = address(this).balance / 32 ether;
+    constructor(
+        IDeposit _depositContract,
+        Node[] memory _nodes,
+        IERC20Metadata _weth
+    ) payable ERC4626(IERC20Metadata(_weth)) ERC20("MetaPoolETH", "mpETH") {
+        require(
+            _weth.decimals() == 18,
+            "wNative token error, implementation for 18 decimals"
+        );
+        uint initialSupply = address(this).balance;
+        require(initialSupply % 32 ether == 0, "Invalid ETH amount");
+        uint newNodesAmount = initialSupply / 32 ether;
         uint nodesLength = _nodes.length;
         require(newNodesAmount >= 2, "Deposit at least 64 ETH");
         require(newNodesAmount < nodesLength, "ETH amount gt nodes");
@@ -45,11 +55,26 @@ contract Staking is Ownable {
             emit Stake(i, _nodes[i].pubkey);
         }
         for (; i < nodesLength; i++) nodes[i] = _nodes[i];
-        mpETH = new MetaPoolETH();
-        mpETH.mint(address(this), newNodesAmount * 1e18);
+        _mint(msg.sender, initialSupply);
+        depositsSinceLastUpdate = initialSupply;
         currentNode = newNodesAmount;
         depositContract = _depositContract;
-        emit Deposit(msg.sender, msg.value);
+        emit Deposit(msg.sender, msg.sender, initialSupply, initialSupply);
+    }
+
+    /// @notice Returns total ETH held by vault + validators
+    function totalAssets() public view override returns (uint) {
+        return
+            address(this).balance + depositsSinceLastUpdate + nodesTotalBalance;
+    }
+
+    function maxDeposit(address) public pure override returns (uint) {
+        return MAX_DEPOSIT;
+    }
+
+    /// @notice Will return the max withdraw for an user once Ethereum enable staking withdraw
+    function maxWithdraw(address) public pure override returns (uint) {
+        return 0;
     }
 
     /// @notice Update node data
@@ -72,26 +97,46 @@ contract Staking is Ownable {
     /// @notice Stake ETH in contract to validators
     function pushToBacon(uint _nodesAmount) external {
         _nodesAmount = Math.min(address(this).balance % 32 ether, _nodesAmount);
-        require(_nodesAmount > 0, "Not enough balance or trying to push 0 nodes");
+        require(
+            _nodesAmount > 0,
+            "Not enough balance or trying to push 0 nodes"
+        );
         require(_stake(_nodesAmount), "ERROR: Node data empty at last index");
     }
 
-    /// @notice Deposit ETH user and try to stake to validator
-    // Just one at a time to avoid high costs
-    function stake() external payable {
-        require(msg.value > 0, "Deposit must be greater than zero");
-        // TODO: Get mpETH from pool
-        uint toMint = msg.value / getmpETHPrice();
-        _stake(1);
-        mpETH.mint(msg.sender, toMint);
-        emit Deposit(msg.sender, msg.value);
+    function deposit(
+        uint256 assets,
+        address receiver
+    ) public override returns (uint256) {
+        require(assets <= maxDeposit(msg.sender), "Exceeds max deposit");
+
+        uint256 shares = previewDeposit(assets);
+        _deposit(_msgSender(), receiver, assets, shares);
+        depositsSinceLastUpdate += assets;
+        // TODO: Unwrap WETH and try to stake
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+        return shares;
     }
 
-    function _stake(uint _newNodesAmount) private returns(bool){
+    /// @notice Deposit ETH user and try to stake to validator
+    /// Just one at a time to avoid high costs
+    function depositETH(address receiver) external payable {
+        require(msg.value > 0, "Deposit must be greater than zero");
+        require(msg.value < maxDeposit(msg.sender), "Exceeds max deposit");
+
+        if (address(this).balance % 32 ether > 0) _stake(1);
+        uint256 shares = previewDeposit(msg.value);
+        _mint(msg.sender, shares);
+        depositsSinceLastUpdate += msg.value;
+        // TODO: Get mpETH from pool
+        emit Deposit(msg.sender, receiver, msg.value, shares);
+    }
+
+    function _stake(uint _newNodesAmount) private returns (bool) {
         uint _currentNode = currentNode;
         uint _lastNode = _currentNode + _newNodesAmount;
-        if (nodes[_lastNode].pubkey.length == 0) 
-            return false;
+        if (nodes[_lastNode].pubkey.length == 0) return false;
 
         for (uint i = _currentNode; i < _lastNode; i++) {
             Node memory node = nodes[i];
@@ -105,15 +150,5 @@ contract Staking is Ownable {
         }
         currentNode = _lastNode;
         return true;
-    }
-
-    /// @notice Returns mpETH price in ETH againts nodes balance
-    /// Starts in 1 and should increase with the nodes rewards
-    function getmpETHPrice() public view returns (uint) {
-        return (
-            nodesTotalBalance == 0
-                ? 1 ether
-                : (nodesTotalBalance * 1 ether) / mpETH.totalSupply()
-        );
     }
 }

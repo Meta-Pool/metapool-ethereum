@@ -9,7 +9,6 @@ import "./MetaPoolETH.sol";
 contract LiquidUnstakePool is Ownable {
     Staking public immutable STAKING;
     MetaETHLiquidityPool public immutable LP_TOKEN;
-    MetaPoolETH public immutable mpETH;
 
     event AddLiquidity(address indexed user, uint256 amount, uint256 shares);
     event RemoveLiquidity(
@@ -19,21 +18,15 @@ contract LiquidUnstakePool is Ownable {
         uint256 mpETH
     );
 
-    constructor(
-        Staking _staking,
-        MetaETHLiquidityPool _lpToken,
-        MetaPoolETH _mpETH
-    ) {
+    constructor(Staking _staking, MetaETHLiquidityPool _lpToken) {
         STAKING = _staking;
         LP_TOKEN = _lpToken;
-        mpETH = _mpETH;
     }
 
     function addLiquidity() external payable {
         require(msg.value > 0, "Can't deposit 0 ETH");
         uint256 totalETHValue = address(this).balance +
-            (mpETH.balanceOf(address(this)) * STAKING.getmpETHPrice()) /
-            1 ether;
+            STAKING.convertToAssets(STAKING.balanceOf(address(this)));
         uint256 sharesToMint = (msg.value * 1 ether) / totalETHValue;
         LP_TOKEN.mint(msg.sender, sharesToMint);
         emit AddLiquidity(msg.sender, msg.value, sharesToMint);
@@ -43,9 +36,9 @@ contract LiquidUnstakePool is Ownable {
         uint256 poolPercentage = (_shares * 1 ether) / LP_TOKEN.totalSupply();
         uint256 ETHToSend = (poolPercentage * address(this).balance) / 1 ether;
         uint256 mpETHToSend = (poolPercentage *
-            mpETH.balanceOf(address(this))) / 1 ether;
+            STAKING.balanceOf(address(this))) / 1 ether;
         payable(msg.sender).transfer(ETHToSend);
-        mpETH.transfer(msg.sender, mpETHToSend);
+        STAKING.transfer(msg.sender, mpETHToSend);
         LP_TOKEN.burn(msg.sender, _shares);
         emit RemoveLiquidity(msg.sender, _shares, ETHToSend, mpETHToSend);
     }
