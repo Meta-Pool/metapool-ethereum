@@ -5,9 +5,10 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./IDeposit.sol";
 import "./MetaPoolETH.sol";
+import "./IWETH.sol";
 
 contract Staking is ERC4626, Ownable {
     struct Node {
@@ -23,6 +24,7 @@ contract Staking is ERC4626, Ownable {
     uint public currentNode;
     uint public nodesTotalBalance;
     uint public pendingStake;
+    IWETH public immutable WETH;
 
     event Stake(uint nodeId, bytes indexed pubkey);
     event UpdateNodeData(uint nodeId, Node data);
@@ -31,8 +33,8 @@ contract Staking is ERC4626, Ownable {
     constructor(
         IDeposit _depositContract,
         Node[] memory _nodes,
-        IERC20Metadata _weth
-    ) payable ERC4626(IERC20Metadata(_weth)) ERC20("MetaPoolETH", "mpETH") {
+        IWETH _weth
+    ) payable ERC4626(IERC20(_weth)) ERC20("MetaPoolETH", "mpETH") {
         require(
             _weth.decimals() == 18,
             "wNative token error, implementation for 18 decimals"
@@ -59,8 +61,11 @@ contract Staking is ERC4626, Ownable {
         nodesTotalBalance = initialStake;
         currentNode = newNodesAmount;
         depositContract = _depositContract;
+        WETH = _weth;
         emit Deposit(msg.sender, msg.sender, initialStake, initialStake);
     }
+
+    receive() external payable {}
 
     /// @notice Returns total ETH held by vault + validators
     function totalAssets() public view override returns (uint) {
@@ -111,8 +116,12 @@ contract Staking is ERC4626, Ownable {
 
         uint256 shares = previewDeposit(assets);
         _deposit(_msgSender(), receiver, assets, shares);
-        // TODO: Unwrap WETH and try to stake
-        pendingStake = address(this).balance;
+        WETH.withdraw(assets);
+        if (address(this).balance % 32 ether > 0) {
+            _stake(1);
+        } else {
+            pendingStake = address(this).balance;
+        }
 
         emit Deposit(msg.sender, receiver, assets, shares);
         return shares;
