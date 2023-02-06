@@ -22,7 +22,7 @@ contract Staking is ERC4626, Ownable {
     IDeposit public immutable depositContract;
     uint public currentNode;
     uint public nodesTotalBalance;
-    uint public depositsSinceLastUpdate;
+    uint public pendingStake;
 
     event Stake(uint nodeId, bytes indexed pubkey);
     event UpdateNodeData(uint nodeId, Node data);
@@ -37,9 +37,9 @@ contract Staking is ERC4626, Ownable {
             _weth.decimals() == 18,
             "wNative token error, implementation for 18 decimals"
         );
-        uint initialSupply = address(this).balance;
-        require(initialSupply % 32 ether == 0, "Invalid ETH amount");
-        uint newNodesAmount = initialSupply / 32 ether;
+        uint initialStake = address(this).balance;
+        require(initialStake % 32 ether == 0, "Invalid ETH amount");
+        uint newNodesAmount = initialStake / 32 ether;
         uint nodesLength = _nodes.length;
         require(newNodesAmount >= 2, "Deposit at least 64 ETH");
         require(newNodesAmount < nodesLength, "ETH amount gt nodes");
@@ -55,17 +55,16 @@ contract Staking is ERC4626, Ownable {
             emit Stake(i, _nodes[i].pubkey);
         }
         for (; i < nodesLength; i++) nodes[i] = _nodes[i];
-        _mint(msg.sender, initialSupply);
-        depositsSinceLastUpdate = initialSupply;
+        _mint(msg.sender, initialStake);
+        nodesTotalBalance = initialStake;
         currentNode = newNodesAmount;
         depositContract = _depositContract;
-        emit Deposit(msg.sender, msg.sender, initialSupply, initialSupply);
+        emit Deposit(msg.sender, msg.sender, initialStake, initialStake);
     }
 
     /// @notice Returns total ETH held by vault + validators
     function totalAssets() public view override returns (uint) {
-        return
-            address(this).balance + depositsSinceLastUpdate + nodesTotalBalance;
+        return pendingStake + nodesTotalBalance;
     }
 
     function maxDeposit(address) public pure override returns (uint) {
@@ -112,8 +111,8 @@ contract Staking is ERC4626, Ownable {
 
         uint256 shares = previewDeposit(assets);
         _deposit(_msgSender(), receiver, assets, shares);
-        depositsSinceLastUpdate += assets;
         // TODO: Unwrap WETH and try to stake
+        pendingStake = address(this).balance;
 
         emit Deposit(msg.sender, receiver, assets, shares);
         return shares;
@@ -125,10 +124,13 @@ contract Staking is ERC4626, Ownable {
         require(msg.value > 0, "Deposit must be greater than zero");
         require(msg.value < maxDeposit(msg.sender), "Exceeds max deposit");
 
-        if (address(this).balance % 32 ether > 0) _stake(1);
         uint256 shares = previewDeposit(msg.value);
         _mint(msg.sender, shares);
-        depositsSinceLastUpdate += msg.value;
+        if (address(this).balance % 32 ether > 0) {
+            _stake(1);
+        } else {
+            pendingStake = address(this).balance;
+        }
         // TODO: Get mpETH from pool
         emit Deposit(msg.sender, receiver, msg.value, shares);
     }
@@ -148,6 +150,8 @@ contract Staking is ERC4626, Ownable {
             );
             emit Stake(i, node.pubkey);
         }
+        pendingStake = address(this).balance;
+        nodesTotalBalance += _newNodesAmount * 32 ether;
         currentNode = _lastNode;
         return true;
     }
