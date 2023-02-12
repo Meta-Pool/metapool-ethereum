@@ -4,7 +4,6 @@ pragma solidity ^0.8;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./Staking.sol";
 import "./MetaETHLiquidityPool.sol";
-import "./MetaPoolETH.sol";
 
 contract LiquidUnstakePool is Ownable {
     Staking public immutable STAKING;
