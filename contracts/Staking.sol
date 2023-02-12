@@ -34,6 +34,16 @@ contract Staking is ERC4626, Ownable {
     event UpdateNodeData(uint nodeId, Node data);
     event UpdateNodesBalance(uint balance);
 
+    modifier validDeposit(uint amount) {
+        _checkDeposit(amount);
+        _;
+    }
+
+    function _checkDeposit(uint amount) internal view {
+        require(amount >= minDeposit(msg.sender), "Staking: MIN_DEPOSIT_ERROR");
+        require(amount <= maxDeposit(msg.sender), "Staking: MAX_DEPOSIT_ERROR");
+    }
+
     constructor(
         IDeposit _depositContract,
         Node[] memory _nodes,
@@ -120,27 +130,19 @@ contract Staking is ERC4626, Ownable {
         uint256 assets,
         address receiver
     ) public override returns (uint256) {
-        _deposit(_msgSender(), receiver, assets, shares);
-        if (address(this).balance % 32 ether > 0) {
-            _stake(1);
-        } else {
-            pendingStake = address(this).balance;
-        }
-
+        IERC20(asset()).safeTransferFrom(msg.sender, address(this), assets);
+        WETH.withdraw(assets);
+        uint256 shares = previewDeposit(assets);
+        _deposit(msg.sender, receiver, assets, shares);
         return shares;
     }
 
     /// @notice Deposit ETH user and try to stake to validator
     /// Just one at a time to avoid high costs
     function depositETH(address receiver) external payable returns (uint256) {
-        _deposit(_msgSender(), receiver, 0, shares);
-        if (address(this).balance % 32 ether > 0) {
-            _stake(1);
-        } else {
-            pendingStake = address(this).balance;
-        }
+        uint256 shares = previewDeposit(msg.value);
+        _deposit(msg.sender, receiver, msg.value, shares);
         // TODO: Get mpETH from pool
-
         return shares;
     }
 
@@ -149,22 +151,14 @@ contract Staking is ERC4626, Ownable {
         address receiver,
         uint256 assets,
         uint256 shares
-    ) internal virtual override {
-        if (assets == 0) {
-            assets = msg.value;
-        } else {
-            IERC20(asset()).safeTransferFrom(caller, address(this), assets);
-            WETH.withdraw(assets);
-        }
-        require(
-            assets >= minDeposit(msg.sender),
-            "Deposit must be greater than zero"
-        );
-        require(assets <= maxDeposit(msg.sender), "Exceeds max deposit");
-        uint256 shares = previewDeposit(assets);
+    ) internal virtual override validDeposit(assets) {
         _mint(receiver, shares);
-
+        _tryToStake();
         emit Deposit(caller, receiver, assets, shares);
+    }
+
+    function _tryToStake() private {
+        _stake(Math.min(1, address(this).balance % 32 ether));
     }
 
     function _stake(uint _newNodesAmount) private returns (bool) {
