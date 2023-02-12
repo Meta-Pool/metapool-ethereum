@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./IDeposit.sol";
 import "./MetaPoolETH.sol";
+import "./LiquidUnstakePool.sol";
 import "./IWETH.sol";
 
 contract Staking is ERC4626, Ownable {
@@ -22,6 +23,7 @@ contract Staking is ERC4626, Ownable {
     }
     mapping(uint => Node) public nodes;
 
+    address public LIQUID_POOL;
     uint private constant MAX_DEPOSIT = 100 ether; // TODO: Define max deposit if any
     uint private constant MIN_DEPOSIT = 0.01 ether;
     IDeposit public immutable depositContract;
@@ -30,6 +32,12 @@ contract Staking is ERC4626, Ownable {
     uint public pendingStake;
     IWETH public immutable WETH;
 
+    event Mint(
+        address indexed sender,
+        address indexed owner,
+        uint256 assets,
+        uint256 shares
+    );
     event Stake(uint nodeId, bytes indexed pubkey);
     event UpdateNodeData(uint nodeId, Node data);
     event UpdateNodesBalance(uint balance);
@@ -99,6 +107,11 @@ contract Staking is ERC4626, Ownable {
         return 0;
     }
 
+    function updateLiquidPool(address _liquidPool) external onlyOwner {
+        require(_liquidPool != address(0), "Invalid address zero");
+        LIQUID_POOL = _liquidPool;
+    }
+
     /// @notice Update node data
     function updateNode(uint _nodeId, Node memory _node) external onlyOwner {
         require(
@@ -126,6 +139,7 @@ contract Staking is ERC4626, Ownable {
         require(_stake(_nodesAmount), "ERROR: Node data empty at last index");
     }
 
+    /// @notice Deposit WETH and convert to ETH
     function deposit(
         uint256 assets,
         address receiver
@@ -137,24 +151,38 @@ contract Staking is ERC4626, Ownable {
         return shares;
     }
 
-    /// @notice Deposit ETH user and try to stake to validator
-    /// Just one at a time to avoid high costs
+    /// @notice Deposit ETH
     function depositETH(address receiver) external payable returns (uint256) {
         uint256 shares = previewDeposit(msg.value);
         _deposit(msg.sender, receiver, msg.value, shares);
-        // TODO: Get mpETH from pool
         return shares;
     }
 
+    /// @notice Get mpETH from pool and/or mint new mpETH, and try to stake to 1 node
     function _deposit(
         address caller,
         address receiver,
         uint256 assets,
         uint256 shares
     ) internal virtual override validDeposit(assets) {
-        _mint(receiver, shares);
+        uint availableShares = Math.min(
+            IERC20(asset()).balanceOf(LIQUID_POOL),
+            shares
+        );
+        uint assetsToPool = convertToAssets(availableShares);
+        require(
+            LiquidUnstakePool(LIQUID_POOL).depositETH{value: assetsToPool}(
+                receiver
+            ) == availableShares,
+            "Pool shares transfer error"
+        );
+        shares -= availableShares;
+        if (shares > 0) {
+            _mint(receiver, shares);
+            emit Mint(caller, receiver, assets - assetsToPool, shares);
+        }
         _tryToStake();
-        emit Deposit(caller, receiver, assets, shares);
+        emit Deposit(caller, receiver, assets, shares + availableShares);
     }
 
     function _tryToStake() private {

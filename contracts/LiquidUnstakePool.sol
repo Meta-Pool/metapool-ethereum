@@ -18,6 +18,16 @@ contract LiquidUnstakePool is Ownable {
         uint256 mpETH
     );
 
+    // TODO: Implement a system of ACL
+    modifier onlyStaking() {
+        _checkAccount(address(STAKING));
+        _;
+    }
+
+    function _checkAccount(address expected) private view {
+        require(msg.sender == expected, "Access error");
+    }
+
     constructor(Staking _staking, MetaETHLiquidityPool _lpToken) {
         STAKING = _staking;
         LP_TOKEN = _lpToken;
@@ -41,5 +51,17 @@ contract LiquidUnstakePool is Ownable {
         STAKING.transfer(msg.sender, mpETHToSend);
         LP_TOKEN.burn(msg.sender, _shares);
         emit RemoveLiquidity(msg.sender, _shares, ETHToSend, mpETHToSend);
+    }
+
+    function depositETH(
+        address _to
+    ) external payable onlyStaking returns (uint) {
+        uint mpETHToSend = STAKING.previewDeposit(msg.value);
+        require(
+            STAKING.balanceOf(address(this)) >= mpETHToSend,
+            "Liquid unstake not enough mpETH"
+        );
+        STAKING.transfer(_to, mpETHToSend);
+        return mpETHToSend;
     }
 }
