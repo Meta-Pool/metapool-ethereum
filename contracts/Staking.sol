@@ -6,11 +6,14 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./IDeposit.sol";
 import "./MetaPoolETH.sol";
 import "./IWETH.sol";
 
 contract Staking is ERC4626, Ownable {
+    using SafeERC20 for IERC20;
+
     struct Node {
         bytes pubkey;
         bytes withdrawCredentials;
@@ -20,6 +23,7 @@ contract Staking is ERC4626, Ownable {
     mapping(uint => Node) public nodes;
 
     uint private constant MAX_DEPOSIT = 100 ether; // TODO: Define max deposit if any
+    uint private constant MIN_DEPOSIT = 0.01 ether;
     IDeposit public immutable depositContract;
     uint public currentNode;
     uint public nodesTotalBalance;
@@ -76,6 +80,10 @@ contract Staking is ERC4626, Ownable {
         return MAX_DEPOSIT;
     }
 
+    function minDeposit(address) public pure returns (uint) {
+        return MIN_DEPOSIT;
+    }
+
     /// @notice Will return the max withdraw for an user once Ethereum enable staking withdraw
     function maxWithdraw(address) public pure override returns (uint) {
         return 0;
@@ -112,36 +120,51 @@ contract Staking is ERC4626, Ownable {
         uint256 assets,
         address receiver
     ) public override returns (uint256) {
-        require(assets <= maxDeposit(msg.sender), "Exceeds max deposit");
-
-        uint256 shares = previewDeposit(assets);
         _deposit(_msgSender(), receiver, assets, shares);
-        WETH.withdraw(assets);
         if (address(this).balance % 32 ether > 0) {
             _stake(1);
         } else {
             pendingStake = address(this).balance;
         }
 
-        emit Deposit(msg.sender, receiver, assets, shares);
         return shares;
     }
 
     /// @notice Deposit ETH user and try to stake to validator
     /// Just one at a time to avoid high costs
-    function depositETH(address receiver) external payable {
-        require(msg.value > 0, "Deposit must be greater than zero");
-        require(msg.value < maxDeposit(msg.sender), "Exceeds max deposit");
-
-        uint256 shares = previewDeposit(msg.value);
-        _mint(msg.sender, shares);
+    function depositETH(address receiver) external payable returns (uint256) {
+        _deposit(_msgSender(), receiver, 0, shares);
         if (address(this).balance % 32 ether > 0) {
             _stake(1);
         } else {
             pendingStake = address(this).balance;
         }
         // TODO: Get mpETH from pool
-        emit Deposit(msg.sender, receiver, msg.value, shares);
+
+        return shares;
+    }
+
+    function _deposit(
+        address caller,
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual override {
+        if (assets == 0) {
+            assets = msg.value;
+        } else {
+            IERC20(asset()).safeTransferFrom(caller, address(this), assets);
+            WETH.withdraw(assets);
+        }
+        require(
+            assets >= minDeposit(msg.sender),
+            "Deposit must be greater than zero"
+        );
+        require(assets <= maxDeposit(msg.sender), "Exceeds max deposit");
+        uint256 shares = previewDeposit(assets);
+        _mint(receiver, shares);
+
+        emit Deposit(caller, receiver, assets, shares);
     }
 
     function _stake(uint _newNodesAmount) private returns (bool) {
