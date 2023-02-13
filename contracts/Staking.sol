@@ -29,7 +29,6 @@ contract Staking is ERC4626, Ownable {
     uint public currentNode;
     uint public nodesTotalBalance;
     uint public pendingStake;
-    IWETH public immutable WETH;
 
     event Mint(
         address indexed sender,
@@ -82,7 +81,6 @@ contract Staking is ERC4626, Ownable {
         nodesTotalBalance = initialStake;
         currentNode = newNodesAmount;
         depositContract = _depositContract;
-        WETH = _weth;
         emit Deposit(msg.sender, msg.sender, initialStake, initialStake);
     }
 
@@ -140,48 +138,56 @@ contract Staking is ERC4626, Ownable {
 
     /// @notice Deposit WETH and convert to ETH
     function deposit(
-        uint256 assets,
-        address receiver
+        uint256 _assets,
+        address _receiver
     ) public override returns (uint256) {
-        IERC20(asset()).safeTransferFrom(msg.sender, address(this), assets);
-        WETH.withdraw(assets);
-        uint256 shares = previewDeposit(assets);
-        _deposit(msg.sender, receiver, assets, shares);
-        return shares;
+        uint256 _shares = previewDeposit(_assets);
+        _deposit(msg.sender, _receiver, _assets, _shares);
+        return _shares;
     }
 
     /// @notice Deposit ETH
-    function depositETH(address receiver) external payable returns (uint256) {
-        uint256 shares = previewDeposit(msg.value);
-        _deposit(msg.sender, receiver, msg.value, shares);
-        return shares;
+    function depositETH(address _receiver) external payable returns (uint256) {
+        uint256 _shares = previewDeposit(msg.value);
+        _deposit(msg.sender, _receiver, 0, _shares);
+        return _shares;
     }
 
     /// @notice Get mpETH from pool and/or mint new mpETH, and try to stake to 1 node
     function _deposit(
-        address caller,
-        address receiver,
-        uint256 assets,
-        uint256 shares
-    ) internal virtual override validDeposit(assets) {
+        address _caller,
+        address _receiver,
+        uint256 _assets,
+        uint256 _shares
+    ) internal override validDeposit(_assets) {
+        if (_assets != 0) {
+            IERC20(asset()).safeTransferFrom(
+                msg.sender,
+                address(this),
+                _assets
+            );
+            IWETH(asset()).withdraw(_assets);
+        } else {
+            _assets = msg.value;
+        }
         uint availableShares = Math.min(
             IERC20(asset()).balanceOf(LIQUID_POOL),
-            shares
+            _shares
         );
         uint assetsToPool = convertToAssets(availableShares);
         require(
-            LiquidUnstakePool(LIQUID_POOL).depositETH{value: assetsToPool}(
-                receiver
+            LiquidUnstakePool(LIQUID_POOL).swapETHForAsset{value: assetsToPool}(
+                _receiver
             ) == availableShares,
-            "Pool shares transfer error"
+            "Pool _shares transfer error"
         );
-        shares -= availableShares;
-        if (shares > 0) {
-            _mint(receiver, shares);
-            emit Mint(caller, receiver, assets - assetsToPool, shares);
+        _shares -= availableShares;
+        if (_shares > 0) {
+            _mint(_receiver, _shares);
+            emit Mint(_caller, _receiver, _assets - assetsToPool, _shares);
         }
         _tryToStake();
-        emit Deposit(caller, receiver, assets, shares + availableShares);
+        emit Deposit(_caller, _receiver, _assets, _shares + availableShares);
     }
 
     function _tryToStake() private {
@@ -207,5 +213,20 @@ contract Staking is ERC4626, Ownable {
         nodesTotalBalance += _newNodesAmount * 32 ether;
         currentNode = _lastNode;
         return true;
+    }
+
+    function _withdraw(
+        address _caller,
+        address _receiver,
+        address _owner,
+        uint256 _assets,
+        uint256 _shares
+    ) internal override {
+        _caller;
+        _receiver;
+        _owner;
+        _assets;
+        _shares;
+        revert("Withdraw not implemented");
     }
 }
