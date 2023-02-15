@@ -29,6 +29,7 @@ contract Staking is ERC4626, Ownable {
     IDeposit public immutable depositContract;
     uint64 private constant UPDATE_BALANCE_TIMELOCK = 4 hours;
     uint64 private constant MIN_DEPOSIT = 0.01 ether;
+    uint64 private estimatedRewardsPerSecond;
     uint32 public currentNode;
 
     event Mint(
@@ -78,7 +79,11 @@ contract Staking is ERC4626, Ownable {
 
     /// @notice Returns total ETH held by vault + validators
     function totalAssets() public view override returns (uint) {
-        return address(this).balance + nodesTotalBalance;
+        return 
+            address(this).balance + 
+            nodesTotalBalance + 
+            estimatedRewardsPerSecond * 
+            (uint64(block.timestamp) - nodesBalanceUnlockTime - UPDATE_BALANCE_TIMELOCK);
     }
 
     function minDeposit(address) public pure returns (uint) {
@@ -108,8 +113,9 @@ contract Staking is ERC4626, Ownable {
     /// @notice Updates nodes total balance
     function updateNodesBalance(uint _newBalance) external onlyOwner {
         // TODO: Get % of rewards as mpETH for metapool
+        uint64 _nodesBalanceUnlockTime = nodesBalanceUnlockTime;
         require(
-            block.timestamp > nodesBalanceUnlockTime,
+            block.timestamp > _nodesBalanceUnlockTime,
             "Unlock time not reached"
         );
         uint _nodesTotalBalance = nodesTotalBalance;
@@ -121,6 +127,7 @@ contract Staking is ERC4626, Ownable {
             "Difference greater than 0.1%"
         );
 
+        estimatedRewardsPerSecond = uint64(diff / (uint64(block.timestamp) - _nodesBalanceUnlockTime - UPDATE_BALANCE_TIMELOCK));
         nodesBalanceUnlockTime = uint64(block.timestamp) + UPDATE_BALANCE_TIMELOCK;
         nodesTotalBalance = _newBalance;
         emit UpdateNodesBalance(_newBalance);
