@@ -75,7 +75,9 @@ contract Staking is ERC4626, Ownable {
         depositContract = _depositContract;
     }
 
-    receive() external payable {}
+    receive() external payable {
+        depositETH(msg.sender);
+    }
 
     /// @notice Returns total ETH held by vault + validators
     function totalAssets() public view override returns (uint) {
