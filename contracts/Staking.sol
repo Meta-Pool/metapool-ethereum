@@ -43,14 +43,20 @@ contract Staking is ERC4626, Ownable {
     event UpdateNodeData(uint nodeId, Node data);
     event UpdateNodesBalance(uint balance);
 
-    modifier validDeposit(uint amount) {
-        _checkDeposit(amount);
+    modifier validDeposit(uint _amount) {
+        _checkDeposit(_amount);
         _;
     }
 
-    function _checkDeposit(uint amount) internal view {
-        require(amount >= minDeposit(msg.sender), "Staking: MIN_DEPOSIT_ERROR");
-        require(amount <= maxDeposit(msg.sender), "Staking: MAX_DEPOSIT_ERROR");
+    function _checkDeposit(uint _amount) internal view {
+        require(
+            _amount >= minDeposit(msg.sender),
+            "Staking: MIN_DEPOSIT_ERROR"
+        );
+        require(
+            _amount <= maxDeposit(msg.sender),
+            "Staking: MAX_DEPOSIT_ERROR"
+        );
     }
 
     constructor(
@@ -150,10 +156,11 @@ contract Staking is ERC4626, Ownable {
         require(_stake(_nodesAmount), "ERROR: Node data empty at last index");
     }
 
-    /// @notice Deposit WETH and convert to ETH
+    /// @notice Deposit WETH
     function deposit(uint256 _assets, address _receiver)
         public
         override
+        validDeposit(_assets)
         returns (uint256)
     {
         uint256 _shares = previewDeposit(_assets);
@@ -162,19 +169,25 @@ contract Staking is ERC4626, Ownable {
     }
 
     /// @notice Deposit ETH
-    function depositETH(address _receiver) external payable returns (uint256) {
+    function depositETH(address _receiver)
+        external
+        payable
+        validDeposit(msg.value)
+        returns (uint256)
+    {
         uint256 _shares = previewDeposit(msg.value);
         _deposit(msg.sender, _receiver, 0, _shares);
         return _shares;
     }
 
-    /// @notice Get mpETH from pool and/or mint new mpETH, and try to stake to 1 node
+    /// @notice Confirm ETH or WETH deposit
+    /// @dev Get ETH or get and convert WETH to ETH, get mpETH from pool and/or mint new mpETH, and try to stake to 1 node
     function _deposit(
         address _caller,
         address _receiver,
         uint256 _assets,
         uint256 _shares
-    ) internal override validDeposit(_assets) {
+    ) internal override {
         if (_assets != 0) {
             IERC20(asset()).safeTransferFrom(
                 msg.sender,
@@ -236,7 +249,7 @@ contract Staking is ERC4626, Ownable {
         address _owner,
         uint256 _assets,
         uint256 _shares
-    ) internal override {
+    ) internal pure override {
         _caller;
         _receiver;
         _owner;
