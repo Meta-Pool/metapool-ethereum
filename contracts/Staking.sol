@@ -130,7 +130,7 @@ contract Staking is ERC4626, Ownable {
 
     /// @notice Updates nodes total balance
     function updateNodesBalance(uint _newBalance) external onlyOwner {
-        // TODO: Track users deposit and send a percentage of rewards to MetaPool
+        // TODO: Get % of rewards as mpETH for metapool
         require(
             block.timestamp > nodesBalanceUnlockTime,
             "unlock time not reached"
@@ -214,12 +214,8 @@ contract Staking is ERC4626, Ownable {
             _mint(_receiver, _shares);
             emit Mint(_caller, _receiver, _assets - assetsToPool, _shares);
         }
-        _tryToStake();
-        emit Deposit(_caller, _receiver, _assets, _shares + availableShares);
-    }
 
-    function _tryToStake() private {
-        _stake(Math.min(1, address(this).balance % 32 ether));
+        emit Deposit(_caller, _receiver, _assets, _shares + availableShares);
     }
 
     function _stake(uint _newNodesAmount) private returns (bool) {
