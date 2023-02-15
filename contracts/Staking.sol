@@ -25,7 +25,7 @@ contract Staking is ERC4626, Ownable {
     address public LIQUID_POOL;
     uint private constant MAX_DEPOSIT = 100 ether; // TODO: Define max deposit if any
     uint private constant MIN_DEPOSIT = 0.01 ether;
-    uint private constant TIMELOCK = 4 hours;
+    uint64 private constant TIMELOCK = 4 hours;
 
     IDeposit public immutable depositContract;
     uint public currentNode;
@@ -133,15 +133,18 @@ contract Staking is ERC4626, Ownable {
         // TODO: Get % of rewards as mpETH for metapool
         require(
             block.timestamp > nodesBalanceUnlockTime,
-            "unlock time not reached"
+            "Unlock time not reached"
         );
-        uint diff = _newBalance > nodesTotalBalance
-            ? _newBalance - nodesTotalBalance
-            : nodesTotalBalance - _newBalance;
-        uint limit = nodesTotalBalance / 1000;
-        require(diff <= limit, "difference greater than 0.1%");
+        uint _nodesTotalBalance = nodesTotalBalance;
+        uint diff = _newBalance > _nodesTotalBalance
+            ? _newBalance - _nodesTotalBalance
+            : _nodesTotalBalance - _newBalance;
+        require(
+            diff <= _nodesTotalBalance / 1000, 
+            "Difference greater than 0.1%"
+        );
 
-        nodesBalanceUnlockTime = block.timestamp + 4 hours;
+        nodesBalanceUnlockTime = block.timestamp + TIMELOCK;
         nodesTotalBalance = _newBalance;
         emit UpdateNodesBalance(_newBalance);
     }
