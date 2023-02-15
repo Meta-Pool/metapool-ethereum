@@ -25,9 +25,12 @@ contract Staking is ERC4626, Ownable {
     address public LIQUID_POOL;
     uint private constant MAX_DEPOSIT = 100 ether; // TODO: Define max deposit if any
     uint private constant MIN_DEPOSIT = 0.01 ether;
+    uint private constant TIMELOCK = 4 hours;
+
     IDeposit public immutable depositContract;
     uint public currentNode;
     uint public nodesTotalBalance;
+    uint public nodesBalanceUnlockTime;
     uint public pendingStake;
 
     event Mint(
@@ -128,6 +131,17 @@ contract Staking is ERC4626, Ownable {
     /// @notice Updates nodes total balance
     function updateNodesBalance(uint _newBalance) external onlyOwner {
         // TODO: Track users deposit and send a percentage of rewards to MetaPool
+        require(
+            block.timestamp > nodesBalanceUnlockTime,
+            "unlock time not reached"
+        );
+        uint diff = _newBalance > nodesTotalBalance
+            ? _newBalance - nodesTotalBalance
+            : nodesTotalBalance - _newBalance;
+        uint limit = nodesTotalBalance / 1000;
+        require(diff <= limit, "difference greater than 0.1%");
+
+        nodesBalanceUnlockTime = block.timestamp + 4 hours;
         nodesTotalBalance = _newBalance;
         emit UpdateNodesBalance(_newBalance);
     }
@@ -143,19 +157,24 @@ contract Staking is ERC4626, Ownable {
     }
 
     /// @notice Deposit WETH
-    function deposit(
-        uint256 _assets,
-        address _receiver
-    ) public override validDeposit(_assets) returns (uint256) {
+    function deposit(uint256 _assets, address _receiver)
+        public
+        override
+        validDeposit(_assets)
+        returns (uint256)
+    {
         uint256 _shares = previewDeposit(_assets);
         _deposit(msg.sender, _receiver, _assets, _shares);
         return _shares;
     }
 
     /// @notice Deposit ETH
-    function depositETH(
-        address _receiver
-    ) external payable validDeposit(msg.value) returns (uint256) {
+    function depositETH(address _receiver)
+        external
+        payable
+        validDeposit(msg.value)
+        returns (uint256)
+    {
         uint256 _shares = previewDeposit(msg.value);
         _deposit(msg.sender, _receiver, 0, _shares);
         return _shares;
