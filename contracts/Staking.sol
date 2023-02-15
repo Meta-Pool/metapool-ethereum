@@ -22,16 +22,14 @@ contract Staking is ERC4626, Ownable {
     }
     mapping(uint => Node) public nodes;
 
-    address public LIQUID_POOL;
-    uint private constant MAX_DEPOSIT = 100 ether; // TODO: Define max deposit if any
-    uint private constant MIN_DEPOSIT = 0.01 ether;
-    uint64 private constant TIMELOCK = 4 hours;
-
-    IDeposit public immutable depositContract;
-    uint public currentNode;
     uint public nodesTotalBalance;
-    uint public nodesBalanceUnlockTime;
-    uint public pendingStake;
+
+    address public LIQUID_POOL; 
+    uint64 public nodesBalanceUnlockTime;
+    IDeposit public immutable depositContract;
+    uint64 private constant UPDATE_BALANCE_TIMELOCK = 4 hours;
+    uint64 private constant MIN_DEPOSIT = 0.01 ether;
+    uint32 public currentNode;
 
     event Mint(
         address indexed sender,
@@ -70,38 +68,17 @@ contract Staking is ERC4626, Ownable {
         );
         uint initialStake = address(this).balance;
         require(initialStake % 32 ether == 0, "Invalid ETH amount");
-        uint newNodesAmount = initialStake / 32 ether;
         uint nodesLength = _nodes.length;
-        require(newNodesAmount >= 2, "Deposit at least 64 ETH");
-        require(newNodesAmount < nodesLength, "ETH amount gt nodes");
-        uint i = 0;
-        for (; i < newNodesAmount; i++) {
-            nodes[i] = _nodes[i];
-            _depositContract.deposit{value: 32 ether}(
-                _nodes[i].pubkey,
-                _nodes[i].withdrawCredentials,
-                _nodes[i].signature,
-                _nodes[i].depositDataRoot
-            );
-            emit Stake(i, _nodes[i].pubkey);
-        }
-        for (; i < nodesLength; i++) nodes[i] = _nodes[i];
-        _mint(msg.sender, initialStake);
-        nodesTotalBalance = initialStake;
-        currentNode = newNodesAmount;
+        for (uint i = 0; i < nodesLength; i++) nodes[i] = _nodes[i];
+        depositETH(msg.sender);
         depositContract = _depositContract;
-        emit Deposit(msg.sender, msg.sender, initialStake, initialStake);
     }
 
     receive() external payable {}
 
     /// @notice Returns total ETH held by vault + validators
     function totalAssets() public view override returns (uint) {
-        return pendingStake + nodesTotalBalance;
-    }
-
-    function maxDeposit(address) public pure override returns (uint) {
-        return MAX_DEPOSIT;
+        return address(this).balance + nodesTotalBalance;
     }
 
     function minDeposit(address) public pure returns (uint) {
@@ -140,18 +117,18 @@ contract Staking is ERC4626, Ownable {
             ? _newBalance - _nodesTotalBalance
             : _nodesTotalBalance - _newBalance;
         require(
-            diff <= _nodesTotalBalance / 1000, 
+            diff <= _nodesTotalBalance / 1000,
             "Difference greater than 0.1%"
         );
 
-        nodesBalanceUnlockTime = block.timestamp + TIMELOCK;
+        nodesBalanceUnlockTime = uint64(block.timestamp) + UPDATE_BALANCE_TIMELOCK;
         nodesTotalBalance = _newBalance;
         emit UpdateNodesBalance(_newBalance);
     }
 
     /// @notice Stake ETH in contract to validators
-    function pushToBacon(uint _nodesAmount) external {
-        _nodesAmount = Math.min(address(this).balance % 32 ether, _nodesAmount);
+    function pushToBacon(uint32 _nodesAmount) external {
+        _nodesAmount = uint32(Math.min((address(this).balance % 32 ether), _nodesAmount));
         require(
             _nodesAmount > 0,
             "Not enough balance or trying to push 0 nodes"
@@ -173,7 +150,7 @@ contract Staking is ERC4626, Ownable {
 
     /// @notice Deposit ETH
     function depositETH(address _receiver)
-        external
+        public
         payable
         validDeposit(msg.value)
         returns (uint256)
@@ -221,9 +198,9 @@ contract Staking is ERC4626, Ownable {
         emit Deposit(_caller, _receiver, _assets, _shares + availableShares);
     }
 
-    function _stake(uint _newNodesAmount) private returns (bool) {
-        uint _currentNode = currentNode;
-        uint _lastNode = _currentNode + _newNodesAmount;
+    function _stake(uint32 _newNodesAmount) private returns (bool) {
+        uint32 _currentNode = currentNode;
+        uint32 _lastNode = _currentNode + _newNodesAmount;
         if (nodes[_lastNode].pubkey.length == 0) return false;
 
         for (uint i = _currentNode; i < _lastNode; i++) {
@@ -236,7 +213,6 @@ contract Staking is ERC4626, Ownable {
             );
             emit Stake(i, node.pubkey);
         }
-        pendingStake = address(this).balance;
         nodesTotalBalance += _newNodesAmount * 32 ether;
         currentNode = _lastNode;
         return true;

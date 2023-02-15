@@ -10,8 +10,7 @@ contract LiquidUnstakePool is ERC4626, Ownable {
     using SafeERC20 for IERC20;
 
     Staking public immutable STAKING;
-    uint private constant MAX_DEPOSIT = 100 ether; // TODO: Define max deposit if any
-    uint private constant MIN_DEPOSIT = 0.01 ether;
+    uint64 private constant MIN_DEPOSIT = 0.01 ether;
 
     event AddLiquidity(
         address indexed user,
@@ -61,10 +60,6 @@ contract LiquidUnstakePool is ERC4626, Ownable {
             "wNative token error, implementation for 18 decimals"
         );
         STAKING = _staking;
-    }
-
-    function maxDeposit(address) public pure override returns (uint) {
-        return MAX_DEPOSIT;
     }
 
     function minDeposit(address) public pure returns (uint) {
@@ -122,6 +117,7 @@ contract LiquidUnstakePool is ERC4626, Ownable {
         address _receiver,
         address _owner
     ) public virtual override returns (uint) {
+        // TODO: Imeplemnt fees
         if (msg.sender != _owner) {
             _spendAllowance(_owner, msg.sender, _shares);
         }
