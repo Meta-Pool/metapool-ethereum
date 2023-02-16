@@ -28,7 +28,7 @@ describe("Staking", function () {
     const Staking = await ethers.getContractFactory("Staking");
     const staking = await upgrades.deployProxy(
       Staking,
-      [DEPOSIT_CONTRACT_ADDRESS, ADDRESSES[NATIVE]],
+      [DEPOSIT_CONTRACT_ADDRESS, ADDRESSES[NATIVE], owner.address],
       {
         initializer: "initialize",
       }

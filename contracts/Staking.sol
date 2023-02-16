@@ -24,6 +24,7 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
     }
 
     uint public nodesTotalBalance;
+    address public treasury;
     address public LIQUID_POOL;
     uint64 public nodesBalanceUnlockTime;
     IDeposit public depositContract;
@@ -31,6 +32,7 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
     uint64 private constant MIN_DEPOSIT = 0.01 ether;
     uint64 private estimatedRewardsPerSecond;
     uint32 public totalNodesActivated;
+    uint16 public rewardsFee;
 
     event Mint(
         address indexed sender,
@@ -60,7 +62,8 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
 
     function initialize(
         IDeposit _depositContract,
-        IERC20MetadataUpgradeable _weth
+        IERC20MetadataUpgradeable _weth,
+        address _treasury
     ) external initializer {
         __ERC4626_init(IERC20Upgradeable(_weth));
         __ERC20_init("MetaPoolETH", "mpETH");
@@ -73,6 +76,8 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
             address(this).balance == 0,
             "Error initialize with no zero balance"
         );
+        rewardsFee = 500;
+        treasury = _treasury;
         depositContract = _depositContract;
     }
 
@@ -103,6 +108,10 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
         LIQUID_POOL = _liquidPool;
     }
 
+    function updateRewardsFee(uint16 _rewardsFee) external onlyOwner {
+        rewardsFee = _rewardsFee;
+    }
+
     /// @notice Updates nodes total balance
     function updateNodesBalance(uint _newBalance) external onlyOwner {
         // TODO: Get % of rewards as mpETH for metapool
@@ -120,6 +129,10 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
             "Difference greater than 0.1%"
         );
 
+        uint assetsAsFee = (diff * rewardsFee) / 10000;
+        uint shares = previewDeposit(assetsAsFee);
+        _mint(treasury, shares);
+        emit Mint(msg.sender, treasury, assetsAsFee, shares);
         estimatedRewardsPerSecond = uint64(
             diff /
                 (uint64(block.timestamp) -
