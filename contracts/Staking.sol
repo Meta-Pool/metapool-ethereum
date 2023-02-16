@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8;
 
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/MathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
 import "./IDeposit.sol";
 import "./LiquidUnstakePool.sol";
 import "./IWETH.sol";
 
-contract Staking is ERC4626, Ownable {
-    using SafeERC20 for IERC20;
+contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
     struct Node {
         bytes pubkey;
@@ -24,9 +26,9 @@ contract Staking is ERC4626, Ownable {
 
     uint public nodesTotalBalance;
 
-    address public LIQUID_POOL; 
+    address public LIQUID_POOL;
     uint64 public nodesBalanceUnlockTime;
-    IDeposit public immutable depositContract;
+    IDeposit public depositContract;
     uint64 private constant UPDATE_BALANCE_TIMELOCK = 4 hours;
     uint64 private constant MIN_DEPOSIT = 0.01 ether;
     uint64 private estimatedRewardsPerSecond;
@@ -58,11 +60,14 @@ contract Staking is ERC4626, Ownable {
         );
     }
 
-    constructor(
+    function initialize(
         IDeposit _depositContract,
         Node[] memory _nodes,
-        IWETH _weth
-    ) payable ERC4626(IERC20(_weth)) ERC20("MetaPoolETH", "mpETH") {
+        IERC20MetadataUpgradeable _weth
+    ) external payable initializer {
+        __ERC4626_init(IERC20Upgradeable(_weth));
+        __ERC20_init("MetaPoolETH", "mpETH");
+        __Ownable_init();
         require(
             _weth.decimals() == 18,
             "wNative token error, implementation for 18 decimals"
@@ -81,11 +86,13 @@ contract Staking is ERC4626, Ownable {
 
     /// @notice Returns total ETH held by vault + validators
     function totalAssets() public view override returns (uint) {
-        return 
-            address(this).balance + 
-            nodesTotalBalance + 
-            estimatedRewardsPerSecond * 
-            (uint64(block.timestamp) - nodesBalanceUnlockTime - UPDATE_BALANCE_TIMELOCK);
+        return
+            address(this).balance +
+            nodesTotalBalance +
+            estimatedRewardsPerSecond *
+            (uint64(block.timestamp) -
+                nodesBalanceUnlockTime -
+                UPDATE_BALANCE_TIMELOCK);
     }
 
     function minDeposit(address) public pure returns (uint) {
@@ -129,15 +136,27 @@ contract Staking is ERC4626, Ownable {
             "Difference greater than 0.1%"
         );
 
-        estimatedRewardsPerSecond = uint64(diff / (uint64(block.timestamp) - _nodesBalanceUnlockTime - UPDATE_BALANCE_TIMELOCK));
-        nodesBalanceUnlockTime = uint64(block.timestamp) + UPDATE_BALANCE_TIMELOCK;
+        estimatedRewardsPerSecond = uint64(
+            diff /
+                (uint64(block.timestamp) -
+                    _nodesBalanceUnlockTime -
+                    UPDATE_BALANCE_TIMELOCK)
+        );
+        nodesBalanceUnlockTime =
+            uint64(block.timestamp) +
+            UPDATE_BALANCE_TIMELOCK;
         nodesTotalBalance = _newBalance;
         emit UpdateNodesBalance(_newBalance);
     }
 
     /// @notice Stake ETH in contract to validators
     function pushToBacon(uint32 _nodesAmount) external {
-        _nodesAmount = uint32(Math.min((address(this).balance % 32 ether), _nodesAmount));
+        _nodesAmount = uint32(
+            MathUpgradeable.min(
+                (address(this).balance % 32 ether),
+                _nodesAmount
+            )
+        );
         require(
             _nodesAmount > 0,
             "Not enough balance or trying to push 0 nodes"
@@ -178,7 +197,7 @@ contract Staking is ERC4626, Ownable {
         uint256 _shares
     ) internal override {
         if (_assets != 0) {
-            IERC20(asset()).safeTransferFrom(
+            IERC20Upgradeable(asset()).safeTransferFrom(
                 msg.sender,
                 address(this),
                 _assets
@@ -187,8 +206,8 @@ contract Staking is ERC4626, Ownable {
         } else {
             _assets = msg.value;
         }
-        uint availableShares = Math.min(
-            IERC20(asset()).balanceOf(LIQUID_POOL),
+        uint availableShares = MathUpgradeable.min(
+            IERC20Upgradeable(asset()).balanceOf(LIQUID_POOL),
             _shares
         );
         uint assetsToPool = convertToAssets(availableShares);
