@@ -22,10 +22,8 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
         bytes signature;
         bytes32 depositDataRoot;
     }
-    mapping(uint => Node) public nodes;
 
     uint public nodesTotalBalance;
-
     address public LIQUID_POOL;
     uint64 public nodesBalanceUnlockTime;
     IDeposit public depositContract;
@@ -62,7 +60,6 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
 
     function initialize(
         IDeposit _depositContract,
-        Node[] memory _nodes,
         IERC20MetadataUpgradeable _weth
     ) external initializer {
         __ERC4626_init(IERC20Upgradeable(_weth));
@@ -76,8 +73,6 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
             address(this).balance == 0, 
             "Error initialize with no zero balance"
         );
-        uint nodesLength = _nodes.length;
-        for (uint i = 0; i < nodesLength; i++) nodes[i] = _nodes[i];
         depositContract = _depositContract;
     }
 
