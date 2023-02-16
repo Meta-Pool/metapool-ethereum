@@ -70,15 +70,13 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
             "wNative token error, implementation for 18 decimals"
         );
         require(
-            address(this).balance == 0, 
+            address(this).balance == 0,
             "Error initialize with no zero balance"
         );
         depositContract = _depositContract;
     }
 
-    receive() external payable {
-        depositETH(msg.sender);
-    }
+    receive() external payable {}
 
     /// @notice Returns total ETH held by vault + validators
     function totalAssets() public view override returns (uint) {
@@ -142,7 +140,7 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
         require(address(this).balance >= requiredBalance, "Not enough balance");
 
         uint32 _totalNodesActivated = totalNodesActivated;
-        
+
         for (uint i = 0; i < nodesLength; i++) {
             depositContract.deposit{value: 32 ether}(
                 _nodes[i].pubkey,

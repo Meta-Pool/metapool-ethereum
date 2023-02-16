@@ -1,14 +1,20 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { ethers } from "hardhat";
-// TODO: Move all process.env to a common file and get constants from there
+import { Contract } from "ethers";
+import { ethers, upgrades } from "hardhat";
+
+const { NETWORK } = require("../lib/env");
+
 const {
-  DEPOSIT_ABI,
   DEPOSIT_CONTRACT_ADDRESS,
-} = require(`../lib/constants/${process.env.NETWORK}`);
+  ADDRESSES,
+  WETH_ABI,
+  NATIVE,
+} = require(`../lib/constants/${NETWORK}`);
 import { toEthers } from "../lib/utils";
 
-// TODO: Reeplace generic arguments
+// TODO: Replace generic arguments
 const testArguments = [
   "0x8e1fce45a66e3b62dd853614acc4e6d76ad1b509186eb5d5da9adc0c56884d028795261d6b3e9b231e7c3ffa62d5a789",
   "0x00625cbc748a8c2e198a702988d9a8a2b69fa81681c57f4a9652f237199c55d5",
@@ -20,49 +26,48 @@ describe("Staking", function () {
   async function deployTest() {
     const [owner, otherAccount] = await ethers.getSigners();
     const Staking = await ethers.getContractFactory("Staking");
-    const staking = await Staking.deploy(
-      DEPOSIT_CONTRACT_ADDRESS,
-      [[...testArguments], [...testArguments], [...testArguments]],
-      { value: toEthers(64) }
+    const staking = await upgrades.deployProxy(
+      Staking,
+      [DEPOSIT_CONTRACT_ADDRESS, ADDRESSES[NATIVE]],
+      {
+        initializer: "initialize",
+      }
     );
+    await staking.deployed();
 
-    return { staking, owner, otherAccount };
+    const LiquidUnstakePool = await ethers.getContractFactory(
+      "LiquidUnstakePool"
+    );
+    const liquidUnstakePool = await LiquidUnstakePool.deploy(
+      staking.address,
+      ADDRESSES[NATIVE]
+    );
+    await staking.updateLiquidPool(liquidUnstakePool.address);
+    const wethC = new ethers.Contract(ADDRESSES[NATIVE], WETH_ABI);
+    return { staking, owner, otherAccount, wethC, liquidUnstakePool };
   }
 
-  xdescribe("Staking deposit ethers contract", function () {
-    it("Revert deposit with 0 ETH", async function () {
-      const { owner } = await loadFixture(deployTest);
-      const depositContract = new ethers.Contract(
-        DEPOSIT_CONTRACT_ADDRESS,
-        DEPOSIT_ABI
-      );
-      await expect(
-        depositContract
-          .connect(owner)
-          .deposit(...testArguments, { value: toEthers(0) })
-      ).to.be.revertedWith("DepositContract: deposit value too low");
+  describe("Staking deposit ETH and WETH", function () {
+    var staking: Contract, owner: SignerWithAddress, wethC: Contract;
+
+    it("Deploy staking and pool", async () => {
+      ({ owner, staking, wethC } = await loadFixture(deployTest));
     });
 
     it("Deposit 32 ETH", async () => {
-      const { owner } = await loadFixture(deployTest);
-      const depositContract = new ethers.Contract(
-        DEPOSIT_CONTRACT_ADDRESS,
-        DEPOSIT_ABI
-      );
-
-      await depositContract
-        .connect(owner)
-        .deposit(...testArguments, { value: toEthers(32) });
+      expect(await staking.balanceOf(owner.address)).to.equal(toEthers(0));
+      await staking.depositETH(owner.address, { value: toEthers(32) });
+      expect(await staking.balanceOf(owner.address)).to.equal(toEthers(32));
     });
-  });
 
-  describe("Add new nodes", function () {
-    it("Add 10 nodes", async () => {
-      const { owner, staking } = await loadFixture(deployTest);
-
-      for (let i = 3; i < 10; i++) {
-        await staking.updateNode(i, [...testArguments]);
-      }
+    it("Deposit 4 WETH", async () => {
+      const value = toEthers(4);
+      const ownerBalanceBefore = await staking.balanceOf(owner.address);
+      await wethC.connect(owner).deposit({ value });
+      await wethC.connect(owner).approve(staking.address, value);
+      await staking.deposit(value, owner.address);
+      const ownerBalanceAfter = await staking.balanceOf(owner.address);
+      expect(ownerBalanceAfter).to.equal(ownerBalanceBefore.add(value));
     });
   });
 });
