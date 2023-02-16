@@ -32,7 +32,7 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
     uint64 private constant UPDATE_BALANCE_TIMELOCK = 4 hours;
     uint64 private constant MIN_DEPOSIT = 0.01 ether;
     uint64 private estimatedRewardsPerSecond;
-    uint32 public currentNode;
+    uint32 public totalNodesActivated;
 
     event Mint(
         address indexed sender,
@@ -110,16 +110,6 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
         LIQUID_POOL = _liquidPool;
     }
 
-    /// @notice Update node data
-    function updateNode(uint _nodeId, Node memory _node) external onlyOwner {
-        require(
-            _nodeId > currentNode,
-            "ERROR: Trying to update a previous node"
-        );
-        nodes[_nodeId] = _node;
-        emit UpdateNodeData(_nodeId, _node);
-    }
-
     /// @notice Updates nodes total balance
     function updateNodesBalance(uint _newBalance) external onlyOwner {
         // TODO: Get % of rewards as mpETH for metapool
@@ -151,18 +141,26 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
     }
 
     /// @notice Stake ETH in contract to validators
-    function pushToBacon(uint32 _nodesAmount) external {
-        _nodesAmount = uint32(
-            MathUpgradeable.min(
-                (address(this).balance % 32 ether),
-                _nodesAmount
-            )
-        );
-        require(
-            _nodesAmount > 0,
-            "Not enough balance or trying to push 0 nodes"
-        );
-        require(_stake(_nodesAmount), "ERROR: Node data empty at last index");
+    function pushToBacon(Node[] memory _nodes) external {
+        uint32 nodesLength = uint32(_nodes.length);
+        uint requiredBalance = nodesLength * 32 ether;
+        require(address(this).balance >= requiredBalance, "Not enough balance");
+
+        uint32 _totalNodesActivated = totalNodesActivated;
+        
+        for (uint i = 0; i < nodesLength; i++) {
+            depositContract.deposit{value: 32 ether}(
+                _nodes[i].pubkey,
+                _nodes[i].withdrawCredentials,
+                _nodes[i].signature,
+                _nodes[i].depositDataRoot
+            );
+            _totalNodesActivated++;
+            emit Stake(_totalNodesActivated, _nodes[i].pubkey);
+        }
+
+        nodesTotalBalance += requiredBalance;
+        totalNodesActivated += _totalNodesActivated;
     }
 
     /// @notice Deposit WETH
@@ -225,26 +223,6 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
         }
 
         emit Deposit(_caller, _receiver, _assets, _shares + availableShares);
-    }
-
-    function _stake(uint32 _newNodesAmount) private returns (bool) {
-        uint32 _currentNode = currentNode;
-        uint32 _lastNode = _currentNode + _newNodesAmount;
-        if (nodes[_lastNode].pubkey.length == 0) return false;
-
-        for (uint i = _currentNode; i < _lastNode; i++) {
-            Node memory node = nodes[i];
-            depositContract.deposit{value: 32 ether}(
-                node.pubkey,
-                node.withdrawCredentials,
-                node.signature,
-                node.depositDataRoot
-            );
-            emit Stake(i, node.pubkey);
-        }
-        nodesTotalBalance += _newNodesAmount * 32 ether;
-        currentNode = _lastNode;
-        return true;
     }
 
     function _withdraw(
