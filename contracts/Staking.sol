@@ -64,7 +64,7 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
         IDeposit _depositContract,
         Node[] memory _nodes,
         IERC20MetadataUpgradeable _weth
-    ) external payable initializer {
+    ) external initializer {
         __ERC4626_init(IERC20Upgradeable(_weth));
         __ERC20_init("MetaPoolETH", "mpETH");
         __Ownable_init();
@@ -72,11 +72,12 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
             _weth.decimals() == 18,
             "wNative token error, implementation for 18 decimals"
         );
-        uint initialStake = address(this).balance;
-        require(initialStake % 32 ether == 0, "Invalid ETH amount");
+        require(
+            address(this).balance == 0, 
+            "Error initialize with no zero balance"
+        );
         uint nodesLength = _nodes.length;
         for (uint i = 0; i < nodesLength; i++) nodes[i] = _nodes[i];
-        depositETH(msg.sender);
         depositContract = _depositContract;
     }
 
