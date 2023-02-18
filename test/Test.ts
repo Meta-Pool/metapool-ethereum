@@ -1,7 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { Contract } from "ethers";
+import { Bytes, Contract } from "ethers";
 import { ethers, upgrades } from "hardhat";
 
 const { NETWORK } = require("../lib/env");
@@ -24,11 +24,17 @@ const testArguments = [
 
 describe("Staking", function () {
   async function deployTest() {
-    const [owner, otherAccount] = await ethers.getSigners();
+    const [owner, updater, activator, otherAccount] = await ethers.getSigners();
     const Staking = await ethers.getContractFactory("Staking");
     const staking = await upgrades.deployProxy(
       Staking,
-      [DEPOSIT_CONTRACT_ADDRESS, ADDRESSES[NATIVE], owner.address],
+      [
+        DEPOSIT_CONTRACT_ADDRESS,
+        ADDRESSES[NATIVE],
+        owner.address,
+        updater.address,
+        activator.address,
+      ],
       {
         initializer: "initialize",
       }
@@ -44,7 +50,20 @@ describe("Staking", function () {
     );
     await staking.updateLiquidPool(liquidUnstakePool.address);
     const wethC = new ethers.Contract(ADDRESSES[NATIVE], WETH_ABI);
-    return { staking, owner, otherAccount, wethC, liquidUnstakePool };
+    const UPDATER_ROLE = await staking.UPDATER_ROLE();
+    const ACTIVATOR_ROLE = await staking.ACTIVATOR_ROLE();
+
+    return {
+      staking,
+      owner,
+      updater,
+      activator,
+      otherAccount,
+      wethC,
+      liquidUnstakePool,
+      UPDATER_ROLE,
+      ACTIVATOR_ROLE,
+    };
   }
 
   describe("Staking deposit ETH and WETH", function () {
@@ -68,6 +87,75 @@ describe("Staking", function () {
       await staking.deposit(value, owner.address);
       const ownerBalanceAfter = await staking.balanceOf(owner.address);
       expect(ownerBalanceAfter).to.equal(ownerBalanceBefore.add(value));
+    });
+  });
+
+  describe("Activate validator", function () {
+    var staking: Contract,
+      owner: SignerWithAddress,
+      activator: SignerWithAddress,
+      otherAccount: SignerWithAddress,
+      ACTIVATOR_ROLE: Bytes;
+
+    it("Send deposit without balance", async () => {
+      ({ owner, activator, otherAccount, staking, ACTIVATOR_ROLE } =
+        await loadFixture(deployTest));
+      expect(await staking.nodesTotalBalance()).to.equal(toEthers(0));
+      await expect(
+        staking.connect(activator).pushToBacon([testArguments])
+      ).to.be.revertedWith("Not enough balance");
+    });
+
+    it("Send deposit without permisions", async () => {
+      await staking.depositETH(owner.address, { value: toEthers(32) });
+      await expect(
+        staking.connect(otherAccount).pushToBacon([testArguments])
+      ).to.be.revertedWith(
+        `AccessControl: account ${otherAccount.address.toLowerCase()} is missing role ${ACTIVATOR_ROLE}`
+      );
+    });
+
+    it("Send deposit correctly", async () => {
+      await staking.connect(activator).pushToBacon([testArguments]);
+      expect(await staking.nodesTotalBalance()).to.equal(toEthers(32));
+    });
+  });
+
+  describe("Update nodes balance", function () {
+    var staking: Contract,
+      owner: SignerWithAddress,
+      updater: SignerWithAddress,
+      activator: SignerWithAddress,
+      UPDATER_ROLE: Bytes;
+
+    it("Update nodes without permisions", async () => {
+      ({ owner, updater, activator, staking, UPDATER_ROLE } = await loadFixture(
+        deployTest
+      ));
+      await staking.depositETH(owner.address, { value: toEthers(32) });
+      await staking.connect(activator).pushToBacon([testArguments]);
+      await expect(
+        staking.updateNodesBalance(toEthers(32.032))
+      ).to.be.revertedWith(
+        `AccessControl: account ${owner.address.toLowerCase()} is missing role ${UPDATER_ROLE}`
+      );
+    });
+
+    it("Update nodes more than 0.1%", async () => {
+      await expect(
+        staking.connect(updater).updateNodesBalance(toEthers(32.1))
+      ).to.be.revertedWith("Difference greater than 0.1%");
+    });
+
+    it("Update nodes correctly", async () => {
+      await staking.connect(updater).updateNodesBalance(toEthers(32.032));
+      expect(await staking.nodesTotalBalance()).to.equal(toEthers(32.032));
+    });
+
+    it("Update nodes too early", async () => {
+      await expect(
+        staking.connect(updater).updateNodesBalance(toEthers(32.032))
+      ).to.be.rejectedWith("Unlock time not reached");
     });
   });
 });
