@@ -66,14 +66,11 @@ describe("Staking", function () {
     };
   }
 
-  describe("Staking deposit ETH and WETH", function () {
+  describe("Deposit", function () {
     var staking: Contract, owner: SignerWithAddress, wethC: Contract;
 
-    it("Deploy staking and pool", async () => {
-      ({ owner, staking, wethC } = await loadFixture(deployTest));
-    });
-
     it("Deposit 32 ETH", async () => {
+      ({ owner, staking, wethC } = await loadFixture(deployTest));
       expect(await staking.balanceOf(owner.address)).to.equal(toEthers(0));
       await staking.depositETH(owner.address, { value: toEthers(32) });
       expect(await staking.balanceOf(owner.address)).to.equal(toEthers(32));
@@ -97,7 +94,7 @@ describe("Staking", function () {
       otherAccount: SignerWithAddress,
       ACTIVATOR_ROLE: Bytes;
 
-    it("Send deposit without balance", async () => {
+    it("Stake more than owned balance must revert", async () => {
       ({ owner, activator, otherAccount, staking, ACTIVATOR_ROLE } =
         await loadFixture(deployTest));
       expect(await staking.nodesTotalBalance()).to.equal(toEthers(0));
@@ -106,7 +103,7 @@ describe("Staking", function () {
       ).to.be.revertedWith("Not enough balance");
     });
 
-    it("Send deposit without permisions", async () => {
+    it("Stake without permissions must revert", async () => {
       await staking.depositETH(owner.address, { value: toEthers(32) });
       await expect(
         staking.connect(otherAccount).pushToBacon([testArguments])
@@ -115,7 +112,7 @@ describe("Staking", function () {
       );
     });
 
-    it("Send deposit correctly", async () => {
+    it("Stake 32 ETH", async () => {
       await staking.connect(activator).pushToBacon([testArguments]);
       expect(await staking.nodesTotalBalance()).to.equal(toEthers(32));
     });
@@ -128,7 +125,7 @@ describe("Staking", function () {
       activator: SignerWithAddress,
       UPDATER_ROLE: Bytes;
 
-    it("Update nodes without permisions", async () => {
+    it("Update without permissions must revert", async () => {
       ({ owner, updater, activator, staking, UPDATER_ROLE } = await loadFixture(
         deployTest
       ));
@@ -141,18 +138,18 @@ describe("Staking", function () {
       );
     });
 
-    it("Update nodes more than 0.1%", async () => {
+    it("Update balance more than 0.1% must revert", async () => {
       await expect(
         staking.connect(updater).updateNodesBalance(toEthers(32.1))
       ).to.be.revertedWith("Difference greater than 0.1%");
     });
 
-    it("Update nodes correctly", async () => {
+    it("Update nodes balance", async () => {
       await staking.connect(updater).updateNodesBalance(toEthers(32.032));
       expect(await staking.nodesTotalBalance()).to.equal(toEthers(32.032));
     });
 
-    it("Update nodes too early", async () => {
+    it("Update before timelock must revert", async () => {
       await expect(
         staking.connect(updater).updateNodesBalance(toEthers(32.032))
       ).to.be.rejectedWith("Unlock time not reached");
