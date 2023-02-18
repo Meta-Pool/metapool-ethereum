@@ -2,7 +2,7 @@
 pragma solidity ^0.8;
 
 import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/MathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
@@ -13,7 +13,11 @@ import "./IDeposit.sol";
 import "./LiquidUnstakePool.sol";
 import "./IWETH.sol";
 
-contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
+contract Staking is
+    Initializable,
+    ERC4626Upgradeable,
+    AccessControlUpgradeable
+{
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     struct Node {
@@ -33,6 +37,8 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
     uint64 private estimatedRewardsPerSecond;
     uint32 public totalNodesActivated;
     uint16 public rewardsFee;
+    bytes32 public constant UPDATER_ROLE = keccak256("UPDATER_ROLE");
+    bytes32 public constant ACTIVATOR_ROLE = keccak256("ACTIVATOR_ROLE");
 
     event Mint(
         address indexed sender,
@@ -63,11 +69,13 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
     function initialize(
         IDeposit _depositContract,
         IERC20MetadataUpgradeable _weth,
-        address _treasury
+        address _treasury,
+        address _updater,
+        address _activator
     ) external initializer {
         __ERC4626_init(IERC20Upgradeable(_weth));
         __ERC20_init("MetaPoolETH", "mpETH");
-        __Ownable_init();
+        __AccessControl_init();
         require(
             _weth.decimals() == 18,
             "wNative token error, implementation for 18 decimals"
@@ -76,6 +84,9 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
             address(this).balance == 0,
             "Error initialize with no zero balance"
         );
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(UPDATER_ROLE, _updater);
+        _grantRole(ACTIVATOR_ROLE, _activator);
         rewardsFee = 500;
         treasury = _treasury;
         depositContract = _depositContract;
@@ -103,17 +114,26 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
         return 0;
     }
 
-    function updateLiquidPool(address _liquidPool) external onlyOwner {
+    function updateLiquidPool(address _liquidPool)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         require(_liquidPool != address(0), "Invalid address zero");
         LIQUID_POOL = _liquidPool;
     }
 
-    function updateRewardsFee(uint16 _rewardsFee) external onlyOwner {
+    function updateRewardsFee(uint16 _rewardsFee)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         rewardsFee = _rewardsFee;
     }
 
     /// @notice Updates nodes total balance
-    function updateNodesBalance(uint _newBalance) external onlyOwner {
+    function updateNodesBalance(uint _newBalance)
+        external
+        onlyRole(UPDATER_ROLE)
+    {
         // TODO: Get % of rewards as mpETH for metapool
         uint64 _nodesBalanceUnlockTime = nodesBalanceUnlockTime;
         require(
@@ -147,7 +167,10 @@ contract Staking is Initializable, ERC4626Upgradeable, OwnableUpgradeable {
     }
 
     /// @notice Stake ETH in contract to validators
-    function pushToBacon(Node[] memory _nodes) external {
+    function pushToBacon(Node[] memory _nodes)
+        external
+        onlyRole(ACTIVATOR_ROLE)
+    {
         uint32 nodesLength = uint32(_nodes.length);
         uint requiredBalance = nodesLength * 32 ether;
         require(address(this).balance >= requiredBalance, "Not enough balance");
