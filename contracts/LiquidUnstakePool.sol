@@ -5,12 +5,20 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./Staking.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 contract LiquidUnstakePool is ERC4626, Ownable {
+    using Address for address payable;
+    using SafeMath for uint;
     using SafeERC20 for IERC20;
 
-    Staking public immutable STAKING;
-    uint64 private constant MIN_DEPOSIT = 0.01 ether;
+    address public treasury;
+    address payable public immutable STAKING;
+    uint public MIN_RESERVES = 64 ether;
+    uint64 public constant MIN_DEPOSIT = 0.01 ether;
+    uint16 public MIN_FEE = 30;
+    uint16 public MAX_FEE = 500;
 
     event AddLiquidity(
         address indexed user,
@@ -27,7 +35,7 @@ contract LiquidUnstakePool is ERC4626, Ownable {
 
     // TODO: Implement a system of ACL
     modifier onlyStaking() {
-        _checkAccount(address(STAKING));
+        _checkAccount(STAKING);
         _;
     }
 
@@ -52,14 +60,16 @@ contract LiquidUnstakePool is ERC4626, Ownable {
     }
 
     constructor(
-        Staking _staking,
-        IWETH _weth
+        address payable staking,
+        IWETH _weth,
+        address _treasury
     ) ERC4626(IERC20(_weth)) ERC20("MetaETHLP", "mpETH/ETH") {
         require(
             _weth.decimals() == 18,
             "wNative token error, implementation for 18 decimals"
         );
-        STAKING = _staking;
+        STAKING = staking;
+        treasury = _treasury;
     }
 
     function minDeposit(address) public pure returns (uint) {
@@ -70,7 +80,9 @@ contract LiquidUnstakePool is ERC4626, Ownable {
     function totalAssets() public view override returns (uint) {
         return
             address(this).balance +
-            STAKING.convertToAssets(STAKING.balanceOf(address(this)));
+            Staking(STAKING).convertToAssets(
+                Staking(STAKING).balanceOf(address(this))
+            );
     }
 
     // TODO: Deposit function min and max deposit
@@ -117,30 +129,49 @@ contract LiquidUnstakePool is ERC4626, Ownable {
         address _receiver,
         address _owner
     ) public virtual override returns (uint) {
-        // TODO: Imeplemnt fees
         if (msg.sender != _owner) {
             _spendAllowance(_owner, msg.sender, _shares);
         }
         uint256 poolPercentage = (_shares * 1 ether) / totalSupply();
         uint256 ETHToSend = (poolPercentage * address(this).balance) / 1 ether;
         uint256 mpETHToSend = (poolPercentage *
-            STAKING.balanceOf(address(this))) / 1 ether;
+            Staking(STAKING).balanceOf(address(this))) / 1 ether;
         _burn(msg.sender, _shares);
-        payable(_receiver).transfer(ETHToSend);
-        STAKING.transfer(_receiver, mpETHToSend);
+        payable(_receiver).sendValue(ETHToSend);
+        IERC20(STAKING).safeTransfer(_receiver, mpETHToSend);
         emit RemoveLiquidity(msg.sender, _shares, ETHToSend, mpETHToSend);
         return ETHToSend;
     }
 
-    function swapETHForAsset(
+    function swapmpETHforETH(uint _amount) external returns (uint) {
+        address payable staking = STAKING;
+        uint16 feeRange = MAX_FEE - MIN_FEE;
+        uint amountToETH = Staking(staking).convertToAssets(_amount);
+        uint reservesAfterSwap = address(this).balance.sub(
+            amountToETH,
+            "Not enough ETH"
+        );
+        uint proportionalBp = (feeRange * reservesAfterSwap) / MIN_RESERVES;
+        uint finalFee = MAX_FEE - proportionalBp;
+        uint feeAmount = (_amount * finalFee) / 10000;
+        uint finalAmountOut = amountToETH - feeAmount;
+        uint feeToTreasury = (feeAmount * 2500) / 10000;
+        IERC20(staking).safeTransferFrom(msg.sender, address(this), _amount);
+        IERC20(staking).safeTransfer(treasury, feeToTreasury);
+        payable(msg.sender).sendValue(finalAmountOut);
+        return finalAmountOut;
+    }
+
+    function swapETHFormpETH(
         address _to
     ) external payable onlyStaking returns (uint) {
-        uint mpETHToSend = STAKING.previewDeposit(msg.value);
+        address payable staking = STAKING;
+        uint mpETHToSend = Staking(staking).previewDeposit(msg.value);
         require(
-            STAKING.balanceOf(address(this)) >= mpETHToSend,
+            Staking(staking).balanceOf(address(this)) >= mpETHToSend,
             "Liquid unstake not enough mpETH"
         );
-        STAKING.transfer(_to, mpETHToSend);
+        IERC20(staking).safeTransfer(_to, mpETHToSend);
         return mpETHToSend;
     }
 }

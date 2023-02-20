@@ -240,7 +240,7 @@ contract Staking is
         );
         uint assetsToPool = convertToAssets(availableShares);
         require(
-            LiquidUnstakePool(LIQUID_POOL).swapETHForAsset{value: assetsToPool}(
+            LiquidUnstakePool(LIQUID_POOL).swapETHFormpETH{value: assetsToPool}(
                 _receiver
             ) == availableShares,
             "Pool _shares transfer error"
