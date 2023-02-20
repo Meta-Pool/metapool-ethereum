@@ -165,6 +165,17 @@ contract LiquidUnstakePool is ERC4626, Ownable, ReentrancyGuard {
         return finalAmountOut;
     }
 
+    function getEthForValidator(
+        uint _amount
+    ) external payable nonReentrant onlyStaking {
+        require(
+            address(this).balance - _amount >= MIN_RESERVES,
+            "Error, ETH request surpass min reserves"
+        );
+        address payable staking = STAKING;
+        Staking(staking).depositETH{value: _amount}(address(this));
+    }
+
     function swapETHFormpETH(
         address _to
     ) external payable nonReentrant onlyStaking returns (uint) {

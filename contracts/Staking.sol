@@ -167,14 +167,16 @@ contract Staking is
     }
 
     /// @notice Stake ETH in contract to validators
-    function pushToBacon(Node[] memory _nodes)
+    /// @param _requestPoolAmount ETH amount to take from LiquidUnstakePool
+    function pushToBacon(Node[] memory _nodes, uint _requestPoolAmount)
         external
         onlyRole(ACTIVATOR_ROLE)
     {
         uint32 nodesLength = uint32(_nodes.length);
         uint requiredBalance = nodesLength * 32 ether;
-        require(address(this).balance >= requiredBalance, "Not enough balance");
-
+        require(address(this).balance + _requestPoolAmount >= requiredBalance, "Not enough balance");
+        if(_requestPoolAmount > 0) 
+            LiquidUnstakePool(LIQUID_POOL).getEthForValidator(_requestPoolAmount);
         uint32 _totalNodesActivated = totalNodesActivated;
 
         for (uint i = 0; i < nodesLength; i++) {
