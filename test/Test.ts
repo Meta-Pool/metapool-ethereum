@@ -46,7 +46,8 @@ describe("Staking", function () {
     );
     const liquidUnstakePool = await LiquidUnstakePool.deploy(
       staking.address,
-      ADDRESSES[NATIVE]
+      ADDRESSES[NATIVE],
+      owner.address
     );
     await staking.updateLiquidPool(liquidUnstakePool.address);
     const wethC = new ethers.Contract(ADDRESSES[NATIVE], WETH_ABI);
