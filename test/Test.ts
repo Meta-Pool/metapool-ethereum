@@ -44,11 +44,15 @@ describe("Staking", function () {
     const LiquidUnstakePool = await ethers.getContractFactory(
       "LiquidUnstakePool"
     );
-    const liquidUnstakePool = await LiquidUnstakePool.deploy(
-      staking.address,
-      ADDRESSES[NATIVE],
-      owner.address
+    const liquidUnstakePool = await upgrades.deployProxy(
+      LiquidUnstakePool,
+      [staking.address, ADDRESSES[NATIVE], owner.address],
+      {
+        initializer: "initialize",
+      }
     );
+    await liquidUnstakePool.deployed();
+
     await staking.updateLiquidPool(liquidUnstakePool.address);
     const wethC = new ethers.Contract(ADDRESSES[NATIVE], WETH_ABI);
     const UPDATER_ROLE = await staking.UPDATER_ROLE();
@@ -100,21 +104,21 @@ describe("Staking", function () {
         await loadFixture(deployTest));
       expect(await staking.nodesTotalBalance()).to.equal(toEthers(0));
       await expect(
-        staking.connect(activator).pushToBacon([testArguments])
+        staking.connect(activator).pushToBacon([testArguments], 0)
       ).to.be.revertedWith("Not enough balance");
     });
 
     it("Stake without permissions must revert", async () => {
       await staking.depositETH(owner.address, { value: toEthers(32) });
       await expect(
-        staking.connect(otherAccount).pushToBacon([testArguments])
+        staking.connect(otherAccount).pushToBacon([testArguments], 0)
       ).to.be.revertedWith(
         `AccessControl: account ${otherAccount.address.toLowerCase()} is missing role ${ACTIVATOR_ROLE}`
       );
     });
 
     it("Stake 32 ETH", async () => {
-      await staking.connect(activator).pushToBacon([testArguments]);
+      await staking.connect(activator).pushToBacon([testArguments], 0);
       expect(await staking.nodesTotalBalance()).to.equal(toEthers(32));
     });
   });
@@ -131,7 +135,7 @@ describe("Staking", function () {
         deployTest
       ));
       await staking.depositETH(owner.address, { value: toEthers(32) });
-      await staking.connect(activator).pushToBacon([testArguments]);
+      await staking.connect(activator).pushToBacon([testArguments], 0);
       await expect(
         staking.updateNodesBalance(toEthers(32.032))
       ).to.be.revertedWith(

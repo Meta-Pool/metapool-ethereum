@@ -16,9 +16,16 @@ const config: HardhatUserConfig = {
         enabled: true,
       },
     },
+    goerli: {
+      url: String(process.env.RPC_ENDPOINT),
+      accounts: [String(process.env.PRIVATE_KEY)],
+    },
   },
   gasReporter: {
     enabled: true,
+  },
+  etherscan: {
+    apiKey: String(process.env.API_KEY),
   },
 };
 
