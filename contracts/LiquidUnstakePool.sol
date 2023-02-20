@@ -7,8 +7,9 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract LiquidUnstakePool is ERC4626, Ownable {
+contract LiquidUnstakePool is ERC4626, Ownable, ReentrancyGuard {
     using Address for address payable;
     using SafeMath for uint;
     using SafeERC20 for IERC20;
@@ -109,7 +110,7 @@ contract LiquidUnstakePool is ERC4626, Ownable {
         address _receiver,
         uint256 _assets,
         uint256 _shares
-    ) internal virtual override {
+    ) internal virtual override nonReentrant {
         if (_assets != 0) {
             IERC20(asset()).safeTransferFrom(
                 msg.sender,
@@ -128,7 +129,7 @@ contract LiquidUnstakePool is ERC4626, Ownable {
         uint256 _shares,
         address _receiver,
         address _owner
-    ) public virtual override returns (uint) {
+    ) public virtual override nonReentrant returns (uint) {
         if (msg.sender != _owner) {
             _spendAllowance(_owner, msg.sender, _shares);
         }
@@ -143,7 +144,9 @@ contract LiquidUnstakePool is ERC4626, Ownable {
         return ETHToSend;
     }
 
-    function swapmpETHforETH(uint _amount) external returns (uint) {
+    function swapmpETHforETH(
+        uint _amount
+    ) external nonReentrant returns (uint) {
         address payable staking = STAKING;
         uint16 feeRange = MAX_FEE - MIN_FEE;
         uint amountToETH = Staking(staking).convertToAssets(_amount);
@@ -164,7 +167,7 @@ contract LiquidUnstakePool is ERC4626, Ownable {
 
     function swapETHFormpETH(
         address _to
-    ) external payable onlyStaking returns (uint) {
+    ) external payable nonReentrant onlyStaking returns (uint) {
         address payable staking = STAKING;
         uint mpETHToSend = Staking(staking).previewDeposit(msg.value);
         require(
