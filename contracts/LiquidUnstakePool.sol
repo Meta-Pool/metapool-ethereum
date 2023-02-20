@@ -1,25 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "./Staking.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract LiquidUnstakePool is ERC4626, Ownable, ReentrancyGuard {
-    using Address for address payable;
-    using SafeMath for uint;
-    using SafeERC20 for IERC20;
+contract LiquidUnstakePool is
+    Initializable,
+    ERC4626Upgradeable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable
+{
+    using AddressUpgradeable for address payable;
+    using SafeMathUpgradeable for uint;
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
     address public treasury;
-    address payable public immutable STAKING;
-    uint public MIN_RESERVES = 64 ether;
+    address payable public STAKING;
+    uint public constant MIN_RESERVES = 30 ether;
     uint64 public constant MIN_DEPOSIT = 0.01 ether;
-    uint16 public MIN_FEE = 30;
-    uint16 public MAX_FEE = 500;
+    uint16 public constant MIN_FEE = 30;
+    uint16 public constant MAX_FEE = 500;
 
     event AddLiquidity(
         address indexed user,
@@ -60,11 +66,15 @@ contract LiquidUnstakePool is ERC4626, Ownable, ReentrancyGuard {
         );
     }
 
-    constructor(
+    function initialize(
         address payable staking,
-        IWETH _weth,
+        IERC20MetadataUpgradeable _weth,
         address _treasury
-    ) ERC4626(IERC20(_weth)) ERC20("MetaETHLP", "mpETH/ETH") {
+    ) external initializer {
+        __ERC4626_init(IERC20Upgradeable(_weth));
+        __ERC20_init("MetaETHLP", "mpETH/ETH");
+        __Ownable_init();
+        __ReentrancyGuard_init();
         require(
             _weth.decimals() == 18,
             "wNative token error, implementation for 18 decimals"
@@ -112,7 +122,7 @@ contract LiquidUnstakePool is ERC4626, Ownable, ReentrancyGuard {
         uint256 _shares
     ) internal virtual override nonReentrant {
         if (_assets != 0) {
-            IERC20(asset()).safeTransferFrom(
+            IERC20Upgradeable(asset()).safeTransferFrom(
                 msg.sender,
                 address(this),
                 _assets
@@ -139,7 +149,7 @@ contract LiquidUnstakePool is ERC4626, Ownable, ReentrancyGuard {
             Staking(STAKING).balanceOf(address(this))) / 1 ether;
         _burn(msg.sender, _shares);
         payable(_receiver).sendValue(ETHToSend);
-        IERC20(STAKING).safeTransfer(_receiver, mpETHToSend);
+        IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
         emit RemoveLiquidity(msg.sender, _shares, ETHToSend, mpETHToSend);
         return ETHToSend;
     }
@@ -159,8 +169,12 @@ contract LiquidUnstakePool is ERC4626, Ownable, ReentrancyGuard {
         uint feeAmount = (_amount * finalFee) / 10000;
         uint finalAmountOut = amountToETH - feeAmount;
         uint feeToTreasury = (feeAmount * 2500) / 10000;
-        IERC20(staking).safeTransferFrom(msg.sender, address(this), _amount);
-        IERC20(staking).safeTransfer(treasury, feeToTreasury);
+        IERC20Upgradeable(staking).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amount
+        );
+        IERC20Upgradeable(staking).safeTransfer(treasury, feeToTreasury);
         payable(msg.sender).sendValue(finalAmountOut);
         return finalAmountOut;
     }
@@ -185,7 +199,7 @@ contract LiquidUnstakePool is ERC4626, Ownable, ReentrancyGuard {
             Staking(staking).balanceOf(address(this)) >= mpETHToSend,
             "Liquid unstake not enough mpETH"
         );
-        IERC20(staking).safeTransfer(_to, mpETHToSend);
+        IERC20Upgradeable(staking).safeTransfer(_to, mpETHToSend);
         return mpETHToSend;
     }
 }

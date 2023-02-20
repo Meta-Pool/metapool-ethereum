@@ -27,11 +27,11 @@ contract Staking is
         bytes32 depositDataRoot;
     }
 
-    uint public nodesTotalBalance;
     address public treasury;
-    address public LIQUID_POOL;
-    uint64 public nodesBalanceUnlockTime;
+    address public liquidUnstakePool;
     IDeposit public depositContract;
+    uint public nodesTotalBalance;
+    uint64 public nodesBalanceUnlockTime;
     uint64 private constant UPDATE_BALANCE_TIMELOCK = 4 hours;
     uint64 private constant MIN_DEPOSIT = 0.01 ether;
     uint64 private estimatedRewardsPerSecond;
@@ -119,7 +119,7 @@ contract Staking is
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         require(_liquidPool != address(0), "Invalid address zero");
-        LIQUID_POOL = _liquidPool;
+        liquidUnstakePool = _liquidPool;
     }
 
     function updateRewardsFee(uint16 _rewardsFee)
@@ -176,7 +176,7 @@ contract Staking is
         uint requiredBalance = nodesLength * 32 ether;
         require(address(this).balance + _requestPoolAmount >= requiredBalance, "Not enough balance");
         if(_requestPoolAmount > 0) 
-            LiquidUnstakePool(LIQUID_POOL).getEthForValidator(_requestPoolAmount);
+            LiquidUnstakePool(liquidUnstakePool).getEthForValidator(_requestPoolAmount);
         uint32 _totalNodesActivated = totalNodesActivated;
 
         for (uint i = 0; i < nodesLength; i++) {
@@ -237,12 +237,12 @@ contract Staking is
             _assets = msg.value;
         }
         uint availableShares = MathUpgradeable.min(
-            IERC20Upgradeable(asset()).balanceOf(LIQUID_POOL),
+            IERC20Upgradeable(asset()).balanceOf(liquidUnstakePool),
             _shares
         );
         uint assetsToPool = convertToAssets(availableShares);
         require(
-            LiquidUnstakePool(LIQUID_POOL).swapETHFormpETH{value: assetsToPool}(
+            LiquidUnstakePool(liquidUnstakePool).swapETHFormpETH{value: assetsToPool}(
                 _receiver
             ) == availableShares,
             "Pool _shares transfer error"
