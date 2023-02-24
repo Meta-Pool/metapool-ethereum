@@ -22,6 +22,7 @@ contract LiquidUnstakePool is
 
     address public treasury;
     address payable public STAKING;
+    uint public ethBalance;
     uint public constant MIN_RESERVES = 30 ether;
     uint64 public constant MIN_DEPOSIT = 0.01 ether;
     uint16 public constant MIN_FEE = 30;
@@ -90,7 +91,7 @@ contract LiquidUnstakePool is
     /// @notice Return the amount of ETH and mpETH equivalent to ETH in the pool
     function totalAssets() public view override returns (uint) {
         return
-            address(this).balance +
+            ethBalance +
             Staking(STAKING).convertToAssets(
                 Staking(STAKING).balanceOf(address(this))
             );
@@ -132,6 +133,7 @@ contract LiquidUnstakePool is
             _assets = msg.value;
         }
         _mint(_receiver, _shares);
+        ethBalance += _assets;
         emit AddLiquidity(_caller, _receiver, _assets, _shares);
     }
 
@@ -144,12 +146,13 @@ contract LiquidUnstakePool is
             _spendAllowance(_owner, msg.sender, _shares);
         }
         uint256 poolPercentage = (_shares * 1 ether) / totalSupply();
-        uint256 ETHToSend = (poolPercentage * address(this).balance) / 1 ether;
+        uint256 ETHToSend = (poolPercentage * ethBalance) / 1 ether;
         uint256 mpETHToSend = (poolPercentage *
             Staking(STAKING).balanceOf(address(this))) / 1 ether;
         _burn(msg.sender, _shares);
         payable(_receiver).sendValue(ETHToSend);
         IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
+        ethBalance -= ETHToSend;
         emit RemoveLiquidity(msg.sender, _shares, ETHToSend, mpETHToSend);
         return ETHToSend;
     }
@@ -160,7 +163,7 @@ contract LiquidUnstakePool is
         address payable staking = STAKING;
         uint16 feeRange = MAX_FEE - MIN_FEE;
         uint amountToETH = Staking(staking).convertToAssets(_amount);
-        uint reservesAfterSwap = address(this).balance.sub(
+        uint reservesAfterSwap = ethBalance.sub(
             amountToETH,
             "Not enough ETH"
         );
@@ -176,17 +179,19 @@ contract LiquidUnstakePool is
         );
         IERC20Upgradeable(staking).safeTransfer(treasury, feeToTreasury);
         payable(msg.sender).sendValue(finalAmountOut);
+        ethBalance -= finalAmountOut;
         return finalAmountOut;
     }
 
     function getEthForValidator(
         uint _amount
-    ) external payable nonReentrant onlyStaking {
+    ) external nonReentrant onlyStaking {
         require(
-            address(this).balance - _amount >= MIN_RESERVES,
+            ethBalance - _amount >= MIN_RESERVES,
             "Error, ETH request surpass min reserves"
         );
         address payable staking = STAKING;
+        ethBalance -= _amount;
         Staking(staking).depositETH{value: _amount}(address(this));
     }
 

@@ -31,10 +31,11 @@ contract Staking is
     address public liquidUnstakePool;
     IDeposit public depositContract;
     uint public nodesTotalBalance;
+    uint public stakingBalance;
     uint64 public nodesBalanceUnlockTime;
     uint64 private constant UPDATE_BALANCE_TIMELOCK = 4 hours;
     uint64 private constant MIN_DEPOSIT = 0.01 ether;
-    uint64 private estimatedRewardsPerSecond;
+    uint64 public estimatedRewardsPerSecond;
     uint32 public totalNodesActivated;
     uint16 public rewardsFee;
     bytes32 public constant UPDATER_ROLE = keccak256("UPDATER_ROLE");
@@ -56,14 +57,7 @@ contract Staking is
     }
 
     function _checkDeposit(uint _amount) internal view {
-        require(
-            _amount >= minDeposit(msg.sender),
-            "Staking: MIN_DEPOSIT_ERROR"
-        );
-        require(
-            _amount <= maxDeposit(msg.sender),
-            "Staking: MAX_DEPOSIT_ERROR"
-        );
+        require(_amount >= minDeposit(msg.sender), "Deposit at least 0.01 ETH");
     }
 
     function initialize(
@@ -97,7 +91,7 @@ contract Staking is
     /// @notice Returns total ETH held by vault + validators
     function totalAssets() public view override returns (uint) {
         return
-            address(this).balance +
+            stakingBalance +
             nodesTotalBalance +
             estimatedRewardsPerSecond *
             (uint64(block.timestamp) -
@@ -109,8 +103,13 @@ contract Staking is
         return MIN_DEPOSIT;
     }
 
-    /// @notice Will return the max withdraw for an user once Ethereum enable staking withdraw
+    /// @notice Will return the max withdraw for an user once Ethereum enables staking withdrawal
     function maxWithdraw(address) public pure override returns (uint) {
+        return 0;
+    }
+
+    /// @notice Will return the max redeem for an user once Ethereum enables staking withdrawal
+    function maxRedeem(address) public view virtual override returns (uint256) {
         return 0;
     }
 
@@ -174,9 +173,14 @@ contract Staking is
     {
         uint32 nodesLength = uint32(_nodes.length);
         uint requiredBalance = nodesLength * 32 ether;
-        require(address(this).balance + _requestPoolAmount >= requiredBalance, "Not enough balance");
-        if(_requestPoolAmount > 0) 
-            LiquidUnstakePool(liquidUnstakePool).getEthForValidator(_requestPoolAmount);
+        require(
+            stakingBalance + _requestPoolAmount >= requiredBalance,
+            "Not enough balance"
+        );
+        if (_requestPoolAmount > 0)
+            LiquidUnstakePool(liquidUnstakePool).getEthForValidator(
+                _requestPoolAmount
+            );
         uint32 _totalNodesActivated = totalNodesActivated;
 
         for (uint i = 0; i < nodesLength; i++) {
@@ -190,11 +194,11 @@ contract Staking is
             emit Stake(_totalNodesActivated, _nodes[i].pubkey);
         }
 
+        stakingBalance -= requiredBalance;
         nodesTotalBalance += requiredBalance;
         totalNodesActivated += _totalNodesActivated;
     }
 
-    /// @notice Deposit WETH
     function deposit(uint256 _assets, address _receiver)
         public
         override
@@ -241,33 +245,23 @@ contract Staking is
             _shares
         );
         uint assetsToPool = convertToAssets(availableShares);
-        require(
-            LiquidUnstakePool(liquidUnstakePool).swapETHFormpETH{value: assetsToPool}(
-                _receiver
-            ) == availableShares,
-            "Pool _shares transfer error"
-        );
-        _shares -= availableShares;
+
+        if (availableShares > 0) {
+            require(
+                LiquidUnstakePool(liquidUnstakePool).swapETHFormpETH{
+                    value: assetsToPool
+                }(_receiver) == availableShares,
+                "Pool _shares transfer error"
+            );
+            _shares -= availableShares;
+        }
+
         if (_shares > 0) {
             _mint(_receiver, _shares);
             emit Mint(_caller, _receiver, _assets - assetsToPool, _shares);
         }
 
+        stakingBalance += _assets;
         emit Deposit(_caller, _receiver, _assets, _shares + availableShares);
-    }
-
-    function _withdraw(
-        address _caller,
-        address _receiver,
-        address _owner,
-        uint256 _assets,
-        uint256 _shares
-    ) internal pure override {
-        _caller;
-        _receiver;
-        _owner;
-        _assets;
-        _shares;
-        revert("Withdraw not implemented");
     }
 }

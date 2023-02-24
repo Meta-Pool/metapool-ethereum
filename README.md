@@ -1,4 +1,4 @@
 ### Goerli Testnet Deploys
 
-Staking deployed to [0xb0F29FA880a07eAA61BDc2E7ae5877B4D620D967](https://goerli.etherscan.io/address/0xb0F29FA880a07eAA61BDc2E7ae5877B4D620D967)
-LiquidUnstakePool deployed to [0x834b32CdBa0B575394Adb846b9a19cC5EfD66ba2](https://goerli.etherscan.io/address/0x834b32CdBa0B575394Adb846b9a19cC5EfD66ba2)
+Staking deployed to [0xd2275C1bc599BcDf21985a9cF810eFB0fEe0CE5f](https://goerli.etherscan.io/address/0xd2275C1bc599BcDf21985a9cF810eFB0fEe0CE5f)
+LiquidUnstakePool deployed to [0xF870BCB0174176B461D0f1f8B36d8c621D9a5501](https://goerli.etherscan.io/address/0xF870BCB0174176B461D0f1f8B36d8c621D9a5501)
