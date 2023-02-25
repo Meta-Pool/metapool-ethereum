@@ -23,22 +23,34 @@ contract LiquidUnstakePool is
     address public treasury;
     address payable public STAKING;
     uint public ethBalance;
-    uint public constant MIN_RESERVES = 30 ether;
+    uint public targetLiquidity;
+    uint public minETHPercentage;
     uint64 public constant MIN_DEPOSIT = 0.01 ether;
     uint16 public constant MIN_FEE = 30;
     uint16 public constant MAX_FEE = 500;
 
     event AddLiquidity(
         address indexed user,
-        address indexed _receiver,
-        uint256 amount,
-        uint256 _shares
+        address indexed receiver,
+        uint amount,
+        uint shares
     );
     event RemoveLiquidity(
         address indexed user,
-        uint256 _shares,
-        uint256 eth,
-        uint256 mpETH
+        uint shares,
+        uint eth,
+        uint mpETH
+    );
+    event Swap(
+        address indexed user,
+        uint amountIn,
+        uint amountOut,
+        uint fees,
+        uint treasuryFees
+    );
+    event SendETHForValidator(
+        uint timestamp,
+        uint amount
     );
 
     // TODO: Implement a system of ACL
@@ -82,6 +94,15 @@ contract LiquidUnstakePool is
         );
         STAKING = staking;
         treasury = _treasury;
+        targetLiquidity = 30 ether;
+    }
+
+    function updateTargetLiquidity(uint _targetLiquidity) external onlyOwner {
+        targetLiquidity = _targetLiquidity;
+    }
+
+    function updateMinETHPercentage(uint _minETHPercentage) external onlyOwner {
+        minETHPercentage = _minETHPercentage;
     }
 
     function minDeposit(address) public pure returns (uint) {
@@ -100,7 +121,7 @@ contract LiquidUnstakePool is
     // TODO: Deposit function min and max deposit
     /// @notice Add liquidity with WETH
     function deposit(
-        uint256 _assets,
+        uint _assets,
         address _receiver
     ) public override validDeposit(_assets) returns (uint) {
         uint _shares = previewDeposit(_assets);
@@ -119,8 +140,8 @@ contract LiquidUnstakePool is
     function _deposit(
         address _caller,
         address _receiver,
-        uint256 _assets,
-        uint256 _shares
+        uint _assets,
+        uint _shares
     ) internal virtual override nonReentrant {
         if (_assets != 0) {
             IERC20Upgradeable(asset()).safeTransferFrom(
@@ -138,16 +159,16 @@ contract LiquidUnstakePool is
     }
 
     function redeem(
-        uint256 _shares,
+        uint _shares,
         address _receiver,
         address _owner
     ) public virtual override nonReentrant returns (uint) {
         if (msg.sender != _owner) {
             _spendAllowance(_owner, msg.sender, _shares);
         }
-        uint256 poolPercentage = (_shares * 1 ether) / totalSupply();
-        uint256 ETHToSend = (poolPercentage * ethBalance) / 1 ether;
-        uint256 mpETHToSend = (poolPercentage *
+        uint poolPercentage = (_shares * 1 ether) / totalSupply();
+        uint ETHToSend = (poolPercentage * ethBalance) / 1 ether;
+        uint mpETHToSend = (poolPercentage *
             Staking(STAKING).balanceOf(address(this))) / 1 ether;
         _burn(msg.sender, _shares);
         payable(_receiver).sendValue(ETHToSend);
@@ -165,11 +186,11 @@ contract LiquidUnstakePool is
         uint16 feeRange = MAX_FEE - MIN_FEE;
         uint amountToETH = Staking(staking).convertToAssets(_amount);
         uint reservesAfterSwap = ethBalance.sub(amountToETH, "Not enough ETH");
-        uint proportionalBp = (feeRange * reservesAfterSwap) / MIN_RESERVES;
+        uint proportionalBp = (feeRange * reservesAfterSwap) / targetLiquidity;
         uint finalFee = MAX_FEE - proportionalBp;
         uint feeAmount = (_amount * finalFee) / 10000;
-        uint finalAmountOut = amountToETH - feeAmount;
-        require(finalAmountOut >= _minOut, "Swap doesn't reach min amount");
+        amountToETH = Staking(staking).convertToAssets(_amount - feeAmount);
+        require(amountToETH >= _minOut, "Swap doesn't reach min amount");
         uint feeToTreasury = (feeAmount * 2500) / 10000;
         IERC20Upgradeable(staking).safeTransferFrom(
             msg.sender,
@@ -177,21 +198,24 @@ contract LiquidUnstakePool is
             _amount
         );
         IERC20Upgradeable(staking).safeTransfer(treasury, feeToTreasury);
-        payable(msg.sender).sendValue(finalAmountOut);
-        ethBalance -= finalAmountOut;
-        return finalAmountOut;
+        payable(msg.sender).sendValue(amountToETH);
+        ethBalance -= amountToETH;
+        emit Swap(msg.sender, _amount, amountToETH, feeAmount, feeToTreasury);
+        return amountToETH;
     }
 
     function getEthForValidator(
         uint _amount
     ) external nonReentrant onlyStaking {
         require(
-            ethBalance - _amount >= MIN_RESERVES,
-            "Error, ETH request surpass min reserves"
+            ethBalance - _amount >=
+                ((totalAssets() - _amount) * minETHPercentage) / 10000,
+            "ETH requested reach min 50/50 proportion"
         );
         address payable staking = STAKING;
         ethBalance -= _amount;
         Staking(staking).depositETH{value: _amount}(address(this));
+        emit SendETHForValidator(block.timestamp, _amount);
     }
 
     function swapETHFormpETH(
