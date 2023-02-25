@@ -158,19 +158,18 @@ contract LiquidUnstakePool is
     }
 
     function swapmpETHforETH(
-        uint _amount
+        uint _amount,
+        uint _minOut
     ) external nonReentrant returns (uint) {
         address payable staking = STAKING;
         uint16 feeRange = MAX_FEE - MIN_FEE;
         uint amountToETH = Staking(staking).convertToAssets(_amount);
-        uint reservesAfterSwap = ethBalance.sub(
-            amountToETH,
-            "Not enough ETH"
-        );
+        uint reservesAfterSwap = ethBalance.sub(amountToETH, "Not enough ETH");
         uint proportionalBp = (feeRange * reservesAfterSwap) / MIN_RESERVES;
         uint finalFee = MAX_FEE - proportionalBp;
         uint feeAmount = (_amount * finalFee) / 10000;
         uint finalAmountOut = amountToETH - feeAmount;
+        require(finalAmountOut >= _minOut, "Swap doesn't reach min amount");
         uint feeToTreasury = (feeAmount * 2500) / 10000;
         IERC20Upgradeable(staking).safeTransferFrom(
             msg.sender,
