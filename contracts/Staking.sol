@@ -84,6 +84,7 @@ contract Staking is
         rewardsFee = 500;
         treasury = _treasury;
         depositContract = _depositContract;
+        nodesBalanceUnlockTime = uint64(block.timestamp);
     }
 
     receive() external payable {}
@@ -95,8 +96,8 @@ contract Staking is
             nodesTotalBalance +
             estimatedRewardsPerSecond *
             (uint64(block.timestamp) -
-                nodesBalanceUnlockTime -
-                UPDATE_BALANCE_TIMELOCK);
+                (nodesBalanceUnlockTime -
+                UPDATE_BALANCE_TIMELOCK));
     }
 
     function minDeposit(address) public pure returns (uint) {
@@ -155,8 +156,8 @@ contract Staking is
         estimatedRewardsPerSecond = uint64(
             diff /
                 (uint64(block.timestamp) -
-                    _nodesBalanceUnlockTime -
-                    UPDATE_BALANCE_TIMELOCK)
+                   ( _nodesBalanceUnlockTime -
+                    UPDATE_BALANCE_TIMELOCK))
         );
         nodesBalanceUnlockTime =
             uint64(block.timestamp) +
@@ -167,7 +168,7 @@ contract Staking is
 
     /// @notice Stake ETH in contract to validators
     /// @param _requestPoolAmount ETH amount to take from LiquidUnstakePool
-    function pushToBacon(Node[] memory _nodes, uint _requestPoolAmount)
+    function pushToBeacon(Node[] memory _nodes, uint _requestPoolAmount)
         external
         onlyRole(ACTIVATOR_ROLE)
     {
