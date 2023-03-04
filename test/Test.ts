@@ -4,8 +4,7 @@ import { expect } from "chai";
 import { BigNumber, Bytes, Contract } from "ethers";
 import { ethers, upgrades } from "hardhat";
 import * as depositData from "../test_deposit_data.json";
-const { NETWORK } = require("../lib/env");
-
+import { NETWORK } from "../lib/env";
 const {
   DEPOSIT_CONTRACT_ADDRESS,
   ADDRESSES,
@@ -23,6 +22,8 @@ const getNextValidator = () =>
       deposit_data_root,
     }))(depositData.default.pop())
   );
+
+const provider = ethers.provider;
 
 describe("Staking", function () {
   async function deployTest() {
@@ -103,6 +104,7 @@ describe("Staking", function () {
       value = toEthers(9.51);
       await staking.depositETH(owner.address, { value });
       expect(await staking.balanceOf(owner.address)).to.eq(toEthers(41.51));
+      expect(await provider.getBalance(staking.address)).to.eq(toEthers(41.51));
     });
 
     it("Deposit WETH", async () => {
@@ -121,14 +123,21 @@ describe("Staking", function () {
 
   describe("Activate validator", function () {
     var staking: Contract,
+      liquidUnstakePool: Contract,
       owner: SignerWithAddress,
       activator: SignerWithAddress,
       otherAccount: SignerWithAddress,
       ACTIVATOR_ROLE: Bytes;
 
     it("Stake more than owned balance must revert", async () => {
-      ({ owner, activator, otherAccount, staking, ACTIVATOR_ROLE } =
-        await loadFixture(deployTest));
+      ({
+        owner,
+        activator,
+        otherAccount,
+        staking,
+        ACTIVATOR_ROLE,
+        liquidUnstakePool,
+      } = await loadFixture(deployTest));
       expect(await staking.nodesTotalBalance()).to.eq(toEthers(0));
       await expect(
         staking.connect(activator).pushToBeacon([getNextValidator()], 0)
@@ -136,7 +145,6 @@ describe("Staking", function () {
     });
 
     it("Stake without permissions must revert", async () => {
-      await staking.depositETH(owner.address, { value: toEthers(32) });
       await expect(
         staking.connect(otherAccount).pushToBeacon([getNextValidator()], 0)
       ).to.be.revertedWith(
@@ -145,8 +153,37 @@ describe("Staking", function () {
     });
 
     it("Stake 32 ETH", async () => {
+      await staking.depositETH(owner.address, { value: toEthers(32) });
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0);
       expect(await staking.nodesTotalBalance()).to.eq(toEthers(32));
+    });
+
+    it("Stake using half ETH from LiquidUnstakePool", async () => {
+      const value = toEthers(16);
+      await staking.depositETH(owner.address, { value });
+      await liquidUnstakePool.depositETH(owner.address, { value });
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value);
+      expect(await liquidUnstakePool.ethBalance()).to.eq(value);
+      await staking
+        .connect(activator)
+        .pushToBeacon([getNextValidator()], value);
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(0);
+      expect(await liquidUnstakePool.ethBalance()).to.eq(0);
+      expect(await staking.stakingBalance()).to.eq(0);
+    });
+
+    it("Stake using ETH only from LiquidUnstakePool", async () => {
+      const value = toEthers(32);
+      await liquidUnstakePool.depositETH(owner.address, { value });
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value);
+      expect(await liquidUnstakePool.ethBalance()).to.eq(value);
+      const stakingBalanceBefore = await staking.stakingBalance();
+      await staking
+        .connect(activator)
+        .pushToBeacon([getNextValidator()], value);
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(0);
+      expect(await liquidUnstakePool.ethBalance()).to.eq(0);
+      expect(await staking.stakingBalance()).to.eq(stakingBalanceBefore);
     });
   });
 
@@ -158,7 +195,7 @@ describe("Staking", function () {
       activator: SignerWithAddress,
       UPDATER_ROLE: Bytes;
 
-    const depositValue = BigNumber.from(toEthers(950)),
+    const depositValue = BigNumber.from(toEthers(660)),
       newNodes = parseInt(depositValue.div(toEthers(32)).toString()),
       nodesBalance = BigNumber.from(newNodes).mul(toEthers(32)),
       onePercent = BigNumber.from(nodesBalance).mul(10).div(10000),
