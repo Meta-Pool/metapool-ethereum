@@ -33,7 +33,7 @@ contract Staking is
     uint public nodesTotalBalance;
     uint public stakingBalance;
     uint64 public nodesBalanceUnlockTime;
-    uint64 private constant UPDATE_BALANCE_TIMELOCK = 4 hours;
+    uint64 public constant UPDATE_BALANCE_TIMELOCK = 4 hours;
     uint64 private constant MIN_DEPOSIT = 0.01 ether;
     uint64 public estimatedRewardsPerSecond;
     uint32 public totalNodesActivated;

@@ -1,7 +1,7 @@
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { Bytes, Contract } from "ethers";
+import { BigNumber, Bytes, Contract } from "ethers";
 import { ethers, upgrades } from "hardhat";
 import * as depositData from "../test_deposit_data.json";
 const { NETWORK } = require("../lib/env");
@@ -26,14 +26,15 @@ const getNextValidator = () =>
 
 describe("Staking", function () {
   async function deployTest() {
-    const [owner, updater, activator, otherAccount] = await ethers.getSigners();
+    const [owner, updater, activator, treasury, otherAccount] =
+      await ethers.getSigners();
     const Staking = await ethers.getContractFactory("Staking");
     const staking = await upgrades.deployProxy(
       Staking,
       [
         DEPOSIT_CONTRACT_ADDRESS,
         ADDRESSES[NATIVE],
-        owner.address,
+        treasury.address,
         updater.address,
         activator.address,
       ],
@@ -48,7 +49,7 @@ describe("Staking", function () {
     );
     const liquidUnstakePool = await upgrades.deployProxy(
       LiquidUnstakePool,
-      [staking.address, ADDRESSES[NATIVE], owner.address],
+      [staking.address, ADDRESSES[NATIVE], treasury.address],
       {
         initializer: "initialize",
       }
@@ -66,6 +67,7 @@ describe("Staking", function () {
       updater,
       activator,
       otherAccount,
+      treasury,
       wethC,
       liquidUnstakePool,
       UPDATER_ROLE,
@@ -152,17 +154,27 @@ describe("Staking", function () {
     var staking: Contract,
       owner: SignerWithAddress,
       updater: SignerWithAddress,
+      treasury: SignerWithAddress,
       activator: SignerWithAddress,
       UPDATER_ROLE: Bytes;
 
+    const depositValue = BigNumber.from(toEthers(950)),
+      newNodes = parseInt(depositValue.div(toEthers(32)).toString()),
+      nodesBalance = BigNumber.from(newNodes).mul(toEthers(32)),
+      onePercent = BigNumber.from(nodesBalance).mul(10).div(10000),
+      newNodesBalance = nodesBalance.add(onePercent);
+
     it("Update without permissions must revert", async () => {
-      ({ owner, updater, activator, staking, UPDATER_ROLE } = await loadFixture(
-        deployTest
-      ));
-      await staking.depositETH(owner.address, { value: toEthers(32) });
-      await staking.connect(activator).pushToBeacon([getNextValidator()], 0);
+      ({ owner, updater, activator, staking, UPDATER_ROLE, treasury } =
+        await loadFixture(deployTest));
+      await staking.depositETH(owner.address, { value: depositValue });
+      await staking.connect(activator).pushToBeacon(
+        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        0
+      );
+      expect(await staking.nodesTotalBalance()).to.eq(nodesBalance);
       await expect(
-        staking.updateNodesBalance(toEthers(32.032))
+        staking.updateNodesBalance(newNodesBalance)
       ).to.be.revertedWith(
         `AccessControl: account ${owner.address.toLowerCase()} is missing role ${UPDATER_ROLE}`
       );
@@ -170,21 +182,55 @@ describe("Staking", function () {
 
     it("Update balance more than 0.1% must revert", async () => {
       await expect(
-        staking.connect(updater).updateNodesBalance(toEthers(32.1))
+        staking.connect(updater).updateNodesBalance(newNodesBalance.add(1))
       ).to.be.revertedWith("Difference greater than 0.1%");
     });
 
-    it("Update nodes balance", async () => {
-      const newNodesBalance = toEthers(32.032);
-      await staking.connect(updater).updateNodesBalance(newNodesBalance);
-      expect(await staking.nodesTotalBalance()).to.eq(newNodesBalance);
-      expect(await staking.totalAssets()).to.eq(newNodesBalance);
+    it("Update nodes balance to same amount", async () => {
+      await staking.connect(updater).updateNodesBalance(nodesBalance);
+      expect(await staking.nodesTotalBalance()).to.eq(nodesBalance);
+      expect(await staking.totalAssets()).to.eq(depositValue);
     });
 
     it("Update before timelock must revert", async () => {
       await expect(
-        staking.connect(updater).updateNodesBalance(toEthers(32.032))
+        staking.connect(updater).updateNodesBalance(newNodesBalance)
       ).to.be.rejectedWith("Unlock time not reached");
+    });
+
+    it("Update nodes balance and mint mpETH for treasury", async () => {
+      const timelock = await staking.UPDATE_BALANCE_TIMELOCK();
+      await time.increase(timelock);
+      const stakingFee = await staking.rewardsFee();
+      const expectedFee = onePercent.mul(stakingFee).div(10000);
+      await staking.connect(updater).updateNodesBalance(newNodesBalance);
+      expect(await staking.balanceOf(treasury.address)).to.eq(expectedFee);
+      expect(await staking.nodesTotalBalance()).to.eq(newNodesBalance);
+      expect(await staking.totalAssets()).to.eq(depositValue.add(onePercent));
+    });
+
+    it("Nodes balance grows by estimatedRewardsPerSecond as expected", async () => {
+      const [stakingBalance, nodesTotalBalance, estimatedRewardsPerSecond] =
+        await Promise.all([
+          staking.stakingBalance(),
+          staking.nodesTotalBalance(),
+          staking.estimatedRewardsPerSecond(),
+        ]);
+      let increaseTime = 1;
+      await time.increase(increaseTime);
+      expect(await staking.totalAssets()).to.eq(
+        stakingBalance
+          .add(nodesTotalBalance)
+          .add(estimatedRewardsPerSecond.mul(increaseTime))
+      );
+      const oneHour = 86400;
+      increaseTime += oneHour;
+      await time.increase(oneHour);
+      expect(await staking.totalAssets()).to.eq(
+        stakingBalance
+          .add(nodesTotalBalance)
+          .add(estimatedRewardsPerSecond.mul(increaseTime))
+      );
     });
   });
 
