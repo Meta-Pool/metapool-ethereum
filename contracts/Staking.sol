@@ -222,6 +222,16 @@ contract Staking is
         return _shares;
     }
 
+    function _withdraw(
+        address,
+        address,
+        address,
+        uint256,
+        uint256
+    ) internal pure override {
+        revert("Withdraw not implemented");
+    }
+
     /// @notice Confirm ETH or WETH deposit
     /// @dev Get ETH or get and convert WETH to ETH, get mpETH from pool and/or mint new mpETH, and try to stake to 1 node
     function _deposit(

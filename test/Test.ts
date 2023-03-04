@@ -117,10 +117,6 @@ describe("Staking", function () {
     });
   });
 
-  // Test updateNodesBalance
-  // Test pushToBeacon
-  // Test withdraw and redeem revert
-
   describe("Activate validator", function () {
     var staking: Contract,
       owner: SignerWithAddress,
@@ -189,6 +185,35 @@ describe("Staking", function () {
       await expect(
         staking.connect(updater).updateNodesBalance(toEthers(32.032))
       ).to.be.rejectedWith("Unlock time not reached");
+    });
+  });
+
+  describe("Withdraw and redeem", function () {
+    var staking: Contract, owner: SignerWithAddress;
+
+    it("Withdraw must revert with max withdraw", async () => {
+      ({ owner, staking } = await loadFixture(deployTest));
+      await expect(
+        staking.withdraw(1, owner.address, owner.address)
+      ).to.be.revertedWith("ERC4626: withdraw more than max");
+    });
+
+    it("Redeem must revert with max redeem", async () => {
+      await expect(
+        staking.redeem(1, owner.address, owner.address)
+      ).to.be.revertedWith("ERC4626: redeem more than max");
+    });
+
+    it("Withdraw must revert with not implemented", async () => {
+      await expect(
+        staking.withdraw(0, owner.address, owner.address)
+      ).to.be.revertedWith("Withdraw not implemented");
+    });
+
+    it("Redeem must revert with not implemented", async () => {
+      await expect(
+        staking.redeem(0, owner.address, owner.address)
+      ).to.be.revertedWith("Withdraw not implemented");
     });
   });
 });
