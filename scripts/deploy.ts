@@ -41,10 +41,10 @@ async function main() {
     }
   );
   await liquidUnstakePool.deployed();
+  console.log(`LiquidUnstakePool deployed to ${liquidUnstakePool.address}`);
 
   await staking.updateLiquidPool(liquidUnstakePool.address);
 
-  console.log(`LiquidUnstakePool deployed to ${liquidUnstakePool.address}`);
 }
 
 main().catch((error) => {

@@ -53,7 +53,6 @@ contract LiquidUnstakePool is
         uint amount
     );
 
-    // TODO: Implement a system of ACL
     modifier onlyStaking() {
         _checkAccount(STAKING);
         _;
@@ -118,7 +117,6 @@ contract LiquidUnstakePool is
             );
     }
 
-    // TODO: Deposit function min and max deposit
     /// @notice Add liquidity with WETH
     function deposit(
         uint _assets,

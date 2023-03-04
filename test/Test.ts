@@ -3,7 +3,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { Bytes, Contract } from "ethers";
 import { ethers, upgrades } from "hardhat";
-
+import * as depositData from "../test_deposit_data.json";
 const { NETWORK } = require("../lib/env");
 
 const {
@@ -14,13 +14,15 @@ const {
 } = require(`../lib/constants/${NETWORK}`);
 import { toEthers } from "../lib/utils";
 
-// TODO: Replace generic arguments
-const testArguments = [
-  "0x8e1fce45a66e3b62dd853614acc4e6d76ad1b509186eb5d5da9adc0c56884d028795261d6b3e9b231e7c3ffa62d5a789",
-  "0x00625cbc748a8c2e198a702988d9a8a2b69fa81681c57f4a9652f237199c55d5",
-  "0xac21b206003aa9ee63b4876a68b3f7031ed3d2d0fd7a5c91e078517d6c6ff8e834a0bbca40ff9bb4096dec1cf52ba01015f2bc1f023b0ad3b4884c39858a9bbbc7883eb506034c05f2aac59cb155f27bf567d4d24679fbd38a5a9656866072a9",
-  "0xbe25431a23817785f7609566275585ffcad59a19bd502ae643532bf94233822d",
-];
+const getNextValidator = () =>
+  Object.values(
+    (({ pubkey, withdrawal_credentials, signature, deposit_data_root }) => ({
+      pubkey,
+      withdrawal_credentials,
+      signature,
+      deposit_data_root,
+    }))(depositData.default.pop())
+  );
 
 describe("Staking", function () {
   async function deployTest() {
@@ -74,23 +76,50 @@ describe("Staking", function () {
   describe("Deposit", function () {
     var staking: Contract, owner: SignerWithAddress, wethC: Contract;
 
-    it("Deposit 32 ETH", async () => {
+    it("Deposit < 0.01 ETH must revert with minAmount", async () => {
       ({ owner, staking, wethC } = await loadFixture(deployTest));
-      expect(await staking.balanceOf(owner.address)).to.equal(toEthers(0));
-      await staking.depositETH(owner.address, { value: toEthers(32) });
-      expect(await staking.balanceOf(owner.address)).to.equal(toEthers(32));
+      let value = toEthers(0.0099);
+      await expect(
+        staking.depositETH(owner.address, { value })
+      ).to.be.rejectedWith("Deposit at least 0.01 ETH");
     });
 
-    it("Deposit 4 WETH", async () => {
-      const value = toEthers(4);
-      const ownerBalanceBefore = await staking.balanceOf(owner.address);
+    it("Deposit < 0.01 wETH must revert with minAmount", async () => {
+      let value = toEthers(0.0099);
+      await wethC.connect(owner).deposit({ value });
+      await wethC.connect(owner).approve(staking.address, value);
+      await expect(staking.deposit(value, owner.address)).to.be.rejectedWith(
+        "Deposit at least 0.01 ETH"
+      );
+    });
+
+    it("Deposit ETH", async () => {
+      let value = toEthers(32);
+      expect(await staking.balanceOf(owner.address)).to.eq(0);
+      await staking.depositETH(owner.address, { value });
+      expect(await staking.balanceOf(owner.address)).to.eq(value);
+      value = toEthers(9.51);
+      await staking.depositETH(owner.address, { value });
+      expect(await staking.balanceOf(owner.address)).to.eq(toEthers(41.51));
+    });
+
+    it("Deposit WETH", async () => {
+      let value = toEthers(4);
       await wethC.connect(owner).deposit({ value });
       await wethC.connect(owner).approve(staking.address, value);
       await staking.deposit(value, owner.address);
-      const ownerBalanceAfter = await staking.balanceOf(owner.address);
-      expect(ownerBalanceAfter).to.equal(ownerBalanceBefore.add(value));
+      expect(await staking.balanceOf(owner.address)).to.eq(toEthers(45.51));
+      value = toEthers(22.49);
+      await wethC.connect(owner).deposit({ value });
+      await wethC.connect(owner).approve(staking.address, value);
+      await staking.deposit(value, owner.address);
+      expect(await staking.balanceOf(owner.address)).to.eq(toEthers(68));
     });
   });
+
+  // Test updateNodesBalance
+  // Test pushToBeacon
+  // Test withdraw and redeem revert
 
   describe("Activate validator", function () {
     var staking: Contract,
@@ -102,24 +131,24 @@ describe("Staking", function () {
     it("Stake more than owned balance must revert", async () => {
       ({ owner, activator, otherAccount, staking, ACTIVATOR_ROLE } =
         await loadFixture(deployTest));
-      expect(await staking.nodesTotalBalance()).to.equal(toEthers(0));
+      expect(await staking.nodesTotalBalance()).to.eq(toEthers(0));
       await expect(
-        staking.connect(activator).pushToBacon([testArguments], 0)
+        staking.connect(activator).pushToBeacon([getNextValidator()], 0)
       ).to.be.revertedWith("Not enough balance");
     });
 
     it("Stake without permissions must revert", async () => {
       await staking.depositETH(owner.address, { value: toEthers(32) });
       await expect(
-        staking.connect(otherAccount).pushToBacon([testArguments], 0)
+        staking.connect(otherAccount).pushToBeacon([getNextValidator()], 0)
       ).to.be.revertedWith(
         `AccessControl: account ${otherAccount.address.toLowerCase()} is missing role ${ACTIVATOR_ROLE}`
       );
     });
 
     it("Stake 32 ETH", async () => {
-      await staking.connect(activator).pushToBacon([testArguments], 0);
-      expect(await staking.nodesTotalBalance()).to.equal(toEthers(32));
+      await staking.connect(activator).pushToBeacon([getNextValidator()], 0);
+      expect(await staking.nodesTotalBalance()).to.eq(toEthers(32));
     });
   });
 
@@ -135,7 +164,7 @@ describe("Staking", function () {
         deployTest
       ));
       await staking.depositETH(owner.address, { value: toEthers(32) });
-      await staking.connect(activator).pushToBacon([testArguments], 0);
+      await staking.connect(activator).pushToBeacon([getNextValidator()], 0);
       await expect(
         staking.updateNodesBalance(toEthers(32.032))
       ).to.be.revertedWith(
@@ -150,8 +179,10 @@ describe("Staking", function () {
     });
 
     it("Update nodes balance", async () => {
-      await staking.connect(updater).updateNodesBalance(toEthers(32.032));
-      expect(await staking.nodesTotalBalance()).to.equal(toEthers(32.032));
+      const newNodesBalance = toEthers(32.032);
+      await staking.connect(updater).updateNodesBalance(newNodesBalance);
+      expect(await staking.nodesTotalBalance()).to.eq(newNodesBalance);
+      expect(await staking.totalAssets()).to.eq(newNodesBalance);
     });
 
     it("Update before timelock must revert", async () => {

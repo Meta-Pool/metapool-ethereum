@@ -134,7 +134,6 @@ contract Staking is
         external
         onlyRole(UPDATER_ROLE)
     {
-        // TODO: Get % of rewards as mpETH for metapool
         uint64 _nodesBalanceUnlockTime = nodesBalanceUnlockTime;
         require(
             block.timestamp > _nodesBalanceUnlockTime,
