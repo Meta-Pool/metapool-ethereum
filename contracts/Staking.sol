@@ -177,6 +177,7 @@ contract Staking is
             stakingBalance + _requestPoolAmount >= requiredBalance,
             "Not enough balance"
         );
+
         if (_requestPoolAmount > 0)
             LiquidUnstakePool(liquidUnstakePool).getEthForValidator(
                 _requestPoolAmount
@@ -250,21 +251,26 @@ contract Staking is
         } else {
             _assets = msg.value;
         }
-        uint availableShares = MathUpgradeable.min(
-            IERC20Upgradeable(asset()).balanceOf(liquidUnstakePool),
-            _shares
-        );
-        uint assetsToPool = convertToAssets(availableShares);
+        uint availableShares;
+        uint assetsToPool;
 
-        if (availableShares > 0) {
-            require(
-                LiquidUnstakePool(liquidUnstakePool).swapETHFormpETH{
-                    value: assetsToPool
-                }(_receiver) == availableShares,
-                "Pool _shares transfer error"
+        if(msg.sender != liquidUnstakePool){
+            availableShares = MathUpgradeable.min(
+                balanceOf(liquidUnstakePool),
+                _shares
             );
-            _shares -= availableShares;
-        }
+            assetsToPool = convertToAssets(availableShares);
+
+            if (availableShares > 0) {
+                require(
+                    LiquidUnstakePool(liquidUnstakePool).swapETHFormpETH{
+                        value: assetsToPool
+                    }(_receiver) == availableShares,
+                    "Pool _shares transfer error"
+                );
+                _shares -= availableShares;
+            }
+        }    
 
         if (_shares > 0) {
             _mint(_receiver, _shares);

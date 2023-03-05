@@ -77,10 +77,15 @@ describe("Staking", function () {
   }
 
   describe("Deposit", function () {
-    var staking: Contract, owner: SignerWithAddress, wethC: Contract;
+    var staking: Contract,
+      liquidUnstakePool: Contract,
+      owner: SignerWithAddress,
+      wethC: Contract;
 
     it("Deposit < 0.01 ETH must revert with minAmount", async () => {
-      ({ owner, staking, wethC } = await loadFixture(deployTest));
+      ({ owner, staking, wethC, liquidUnstakePool } = await loadFixture(
+        deployTest
+      ));
       let value = toEthers(0.0099);
       await expect(
         staking.depositETH(owner.address, { value })
@@ -118,6 +123,22 @@ describe("Staking", function () {
       await wethC.connect(owner).approve(staking.address, value);
       await staking.deposit(value, owner.address);
       expect(await staking.balanceOf(owner.address)).to.eq(toEthers(68));
+    });
+
+    it("Deposit ETH and get mpETH from LiquidUnstakePool", async () => {
+      const value = toEthers(2);
+      await liquidUnstakePool.depositETH(owner.address, { value });
+      await staking.approve(liquidUnstakePool.address, value);
+      await liquidUnstakePool.swapmpETHforETH(value, 0);
+      const valueMinusFee = toEthers(1.975);
+      const poolmpETHBalanceBefore = await staking.balanceOf(
+        liquidUnstakePool.address
+      );
+      expect(poolmpETHBalanceBefore).to.eq(valueMinusFee);
+      const mpETHTotalSupplyBefore = await staking.totalSupply();
+      await staking.depositETH(owner.address, { value: valueMinusFee });
+      expect(await staking.balanceOf(liquidUnstakePool.address)).to.eq(0);
+      expect(await staking.totalSupply()).to.eq(mpETHTotalSupplyBefore);
     });
   });
 
