@@ -177,9 +177,13 @@ contract LiquidUnstakePool is
         uint16 feeRange = MAX_FEE - MIN_FEE;
         uint amountToETH = Staking(staking).convertToAssets(_amount);
         uint reservesAfterSwap = ethBalance.sub(amountToETH, "Not enough ETH");
-        uint proportionalBp = (feeRange * reservesAfterSwap) / targetLiquidity;
-        uint finalFee = MAX_FEE - proportionalBp;
-        uint feeAmount = (_amount * finalFee) / 10000;
+        uint feeAmount = MIN_FEE;
+        if (reservesAfterSwap < targetLiquidity) {
+            uint proportionalBp = (feeRange * reservesAfterSwap) /
+                targetLiquidity;
+            uint finalFee = MAX_FEE - proportionalBp;
+            feeAmount = (_amount * finalFee) / 10000;
+        }
         amountToETH = Staking(staking).convertToAssets(_amount - feeAmount);
         require(amountToETH >= _minOut, "Swap doesn't reach min amount");
         uint feeToTreasury = (feeAmount * 2500) / 10000;
