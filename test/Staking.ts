@@ -193,7 +193,25 @@ describe("Staking", function () {
       expect(await staking.stakingBalance()).to.eq(0);
     });
 
+    it("Try to stake using ETH only from must revert with ETH/mpETH proportion", async () => {
+      const value = toEthers(32);
+      await liquidUnstakePool.depositETH(owner.address, { value });
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value);
+      expect(await liquidUnstakePool.ethBalance()).to.eq(value);
+      await expect(
+        staking.connect(activator).pushToBeacon([getNextValidator()], value)
+      ).to.be.revertedWith("ETH requested reach min ETH/mpETH proportion");
+    });
+
     it("Stake using ETH only from LiquidUnstakePool", async () => {
+      ({
+        owner,
+        activator,
+        otherAccount,
+        staking,
+        ACTIVATOR_ROLE,
+        liquidUnstakePool,
+      } = await loadFixture(deployTest));
       const value = toEthers(32);
       await liquidUnstakePool.depositETH(owner.address, { value });
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value);

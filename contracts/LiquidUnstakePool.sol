@@ -48,10 +48,7 @@ contract LiquidUnstakePool is
         uint fees,
         uint treasuryFees
     );
-    event SendETHForValidator(
-        uint timestamp,
-        uint amount
-    );
+    event SendETHForValidator(uint timestamp, uint amount);
 
     modifier onlyStaking() {
         _checkAccount(STAKING);
@@ -68,14 +65,7 @@ contract LiquidUnstakePool is
     }
 
     function _checkDeposit(uint _amount) internal view {
-        require(
-            _amount >= minDeposit(msg.sender),
-            "Staking: MIN_DEPOSIT_ERROR"
-        );
-        require(
-            _amount <= maxDeposit(msg.sender),
-            "Staking: MAX_DEPOSIT_ERROR"
-        );
+        require(_amount >= minDeposit(msg.sender), "Deposit at least 0.01 ETH");
     }
 
     function initialize(
@@ -94,7 +84,10 @@ contract LiquidUnstakePool is
         STAKING = staking;
         treasury = _treasury;
         targetLiquidity = 30 ether;
+        minETHPercentage = 5000;
     }
+
+    receive() external payable {}
 
     function updateTargetLiquidity(uint _targetLiquidity) external onlyOwner {
         targetLiquidity = _targetLiquidity;
@@ -208,7 +201,7 @@ contract LiquidUnstakePool is
         require(
             ethBalance - _amount >=
                 ((totalAssets() - _amount) * minETHPercentage) / 10000,
-            "ETH requested reach min 50/50 proportion"
+            "ETH requested reach min ETH/mpETH proportion"
         );
         address payable staking = STAKING;
         ethBalance -= _amount;

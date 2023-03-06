@@ -28,7 +28,7 @@ contract Staking is
     }
 
     address public treasury;
-    address public liquidUnstakePool;
+    address payable public liquidUnstakePool;
     IDeposit public depositContract;
     uint public nodesTotalBalance;
     uint public stakingBalance;
@@ -114,7 +114,7 @@ contract Staking is
         return 0;
     }
 
-    function updateLiquidPool(address _liquidPool)
+    function updateLiquidPool(address payable _liquidPool)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
