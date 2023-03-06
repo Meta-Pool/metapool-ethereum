@@ -259,8 +259,8 @@ contract Staking is
                 balanceOf(liquidUnstakePool),
                 _shares
             );
-            assetsToPool = convertToAssets(availableShares);
-
+            assetsToPool = previewMint(availableShares);
+        
             if (availableShares > 0) {
                 require(
                     LiquidUnstakePool(liquidUnstakePool).swapETHFormpETH{
