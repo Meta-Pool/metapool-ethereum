@@ -197,7 +197,7 @@ contract Staking is
 
         stakingBalance -= requiredBalance;
         nodesTotalBalance += requiredBalance;
-        totalNodesActivated += _totalNodesActivated;
+        totalNodesActivated = _totalNodesActivated;
     }
 
     function deposit(uint256 _assets, address _receiver)

@@ -223,6 +223,7 @@ contract LiquidUnstakePool is
             "Liquid unstake not enough mpETH"
         );
         IERC20Upgradeable(staking).safeTransfer(_to, mpETHToSend);
+        ethBalance += msg.value;
         return mpETHToSend;
     }
 }
