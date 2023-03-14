@@ -269,15 +269,16 @@ contract Staking is
                     "Pool _shares transfer error"
                 );
                 _shares -= availableShares;
+                _assets -= assetsToPool;
             }
         }    
 
         if (_shares > 0) {
             _mint(_receiver, _shares);
-            emit Mint(_caller, _receiver, _assets - assetsToPool, _shares);
+            emit Mint(_caller, _receiver, _assets, _shares);
         }
 
         stakingBalance += _assets;
-        emit Deposit(_caller, _receiver, _assets, _shares + availableShares);
+        emit Deposit(_caller, _receiver, _assets + assetsToPool, _shares + availableShares);
     }
 }
