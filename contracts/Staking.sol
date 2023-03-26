@@ -11,6 +11,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import "./IDeposit.sol";
 import "./LiquidUnstakePool.sol";
+import "./Withdrawal.sol";
 import "./IWETH.sol";
 
 contract Staking is
@@ -40,6 +41,7 @@ contract Staking is
     uint16 public rewardsFee;
     bytes32 public constant UPDATER_ROLE = keccak256("UPDATER_ROLE");
     bytes32 public constant ACTIVATOR_ROLE = keccak256("ACTIVATOR_ROLE");
+    address public withdrawal;
 
     event Mint(
         address indexed sender,
@@ -87,7 +89,9 @@ contract Staking is
         nodesBalanceUnlockTime = uint64(block.timestamp);
     }
 
-    receive() external payable {}
+    receive() external payable {
+        stakingBalance += msg.value;
+    }
 
     /// @notice Returns total ETH held by vault + validators
     function totalAssets() public view override returns (uint) {
@@ -112,6 +116,13 @@ contract Staking is
     /// @notice Will return the max redeem for an user once Ethereum enables staking withdrawal
     function maxRedeem(address) public view virtual override returns (uint256) {
         return 0;
+    }
+
+    function updateWithdrawal(address _withdrawal)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        withdrawal = _withdrawal;
     }
 
     function updateLiquidPool(address payable _liquidPool)
@@ -140,7 +151,8 @@ contract Staking is
             "Unlock time not reached"
         );
         uint _nodesTotalBalance = nodesTotalBalance;
-        uint diff = _newBalance > _nodesTotalBalance
+        bool balanceIncremented = _newBalance > _nodesTotalBalance;
+        uint diff = balanceIncremented
             ? _newBalance - _nodesTotalBalance
             : _nodesTotalBalance - _newBalance;
         require(
@@ -148,10 +160,13 @@ contract Staking is
             "Difference greater than 0.1%"
         );
 
-        uint assetsAsFee = (diff * rewardsFee) / 10000;
-        uint shares = previewDeposit(assetsAsFee);
-        _mint(treasury, shares);
-        emit Mint(msg.sender, treasury, assetsAsFee, shares);
+        if (balanceIncremented) {
+            uint assetsAsFee = (diff * rewardsFee) / 10000;
+            uint shares = previewDeposit(assetsAsFee);
+            _mint(treasury, shares);
+            emit Mint(msg.sender, treasury, assetsAsFee, shares);
+        }
+
         estimatedRewardsPerSecond = uint64(
             diff /
                 (uint64(block.timestamp) -
@@ -223,14 +238,21 @@ contract Staking is
         return _shares;
     }
 
+    /// @dev Same function as ERC4626 implementation but instead of transfer assets set pending withdraw on withdrawal contract
     function _withdraw(
-        address,
-        address,
-        address,
-        uint256,
-        uint256
-    ) internal pure override {
-        revert("Withdraw not implemented");
+        address caller,
+        address receiver,
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal override {
+        if (caller != owner) {
+            _spendAllowance(owner, caller, shares);
+        }
+        _burn(owner, shares);
+        Withdrawal(withdrawal).requestWithdraw(assets, msg.sender);
+
+        emit Withdraw(caller, receiver, owner, assets, shares);
     }
 
     /// @notice Confirm ETH or WETH deposit
