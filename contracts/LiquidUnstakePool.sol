@@ -174,28 +174,40 @@ contract LiquidUnstakePool is
         uint _minOut
     ) external nonReentrant returns (uint) {
         address payable staking = STAKING;
-        uint16 feeRange = MAX_FEE - MIN_FEE;
-        uint amountToETH = Staking(staking).convertToAssets(_amount);
-        uint reservesAfterSwap = ethBalance.sub(amountToETH, "Not enough ETH");
-        uint finalFee = MIN_FEE;
-        if (reservesAfterSwap < targetLiquidity) {
-            uint proportionalBp = (feeRange * reservesAfterSwap) / targetLiquidity;
-            finalFee = MAX_FEE - proportionalBp;
-        }
-        uint feeAmount = (_amount * finalFee) / 10000;
-        amountToETH = Staking(staking).convertToAssets(_amount - feeAmount);
-        require(amountToETH >= _minOut, "Swap doesn't reach min amount");
+        (uint amountOut, uint feeAmount) = getAmountOut(_amount);
+        require(amountOut >= _minOut, "Swap doesn't reach min amount");
         uint feeToTreasury = (feeAmount * 2500) / 10000;
+        ethBalance -= amountOut;
         IERC20Upgradeable(staking).safeTransferFrom(
             msg.sender,
             address(this),
             _amount
         );
         IERC20Upgradeable(staking).safeTransfer(treasury, feeToTreasury);
-        payable(msg.sender).sendValue(amountToETH);
-        ethBalance -= amountToETH;
-        emit Swap(msg.sender, _amount, amountToETH, feeAmount, feeToTreasury);
-        return amountToETH;
+        payable(msg.sender).sendValue(amountOut);
+        emit Swap(msg.sender, _amount, amountOut, feeAmount, feeToTreasury);
+        return amountOut;
+    }
+
+    /// @notice Return amountOut from swap and fee taken from _amountIn
+    /// @param _amountIn mpETH amount to swap
+    /// @return amountOut ETH amount out from swap
+    /// @return feeAmount Total mpETH fee from _amountIn
+    function getAmountOut(
+        uint _amountIn
+    ) public view returns (uint amountOut, uint feeAmount) {
+        address payable staking = STAKING;
+        uint16 feeRange = MAX_FEE - MIN_FEE;
+        amountOut = Staking(staking).convertToAssets(_amountIn);
+        uint reservesAfterSwap = ethBalance.sub(amountOut, "Not enough ETH");
+        uint finalFee = MIN_FEE;
+        if (reservesAfterSwap < targetLiquidity) {
+            uint proportionalBp = (feeRange * reservesAfterSwap) /
+                targetLiquidity;
+            finalFee = MAX_FEE - proportionalBp;
+        }
+        feeAmount = (_amountIn * finalFee) / 10000;
+        amountOut = Staking(staking).convertToAssets(_amountIn - feeAmount);
     }
 
     function getEthForValidator(
