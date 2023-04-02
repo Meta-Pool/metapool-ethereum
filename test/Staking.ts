@@ -58,7 +58,7 @@ describe("Staking", function () {
     await liquidUnstakePool.deployed();
 
     const Withdrawal = await ethers.getContractFactory("Withdrawal");
-    const withdrawal = await Withdrawal.deploy(staking.address);
+    const withdrawal = await upgrades.deployProxy(Withdrawal, [staking.address], { initializer: "initialize"});
     await withdrawal.deployed();
 
     await staking.updateWithdrawal(withdrawal.address);
