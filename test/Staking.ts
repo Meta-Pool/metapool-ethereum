@@ -57,6 +57,11 @@ describe("Staking", function () {
     );
     await liquidUnstakePool.deployed();
 
+    const Withdrawal = await ethers.getContractFactory("Withdrawal");
+    const withdrawal = await Withdrawal.deploy(staking.address);
+    await withdrawal.deployed();
+
+    await staking.updateWithdrawal(withdrawal.address);
     await staking.updateLiquidPool(liquidUnstakePool.address);
     const wethC = new ethers.Contract(ADDRESSES[NATIVE], WETH_ABI);
     const UPDATER_ROLE = await staking.UPDATER_ROLE();
@@ -71,6 +76,7 @@ describe("Staking", function () {
       treasury,
       wethC,
       liquidUnstakePool,
+      withdrawal,
       UPDATER_ROLE,
       ACTIVATOR_ROLE,
     };
@@ -140,6 +146,22 @@ describe("Staking", function () {
       expect(await staking.balanceOf(liquidUnstakePool.address)).to.eq(0);
       expect(await staking.totalSupply()).to.eq(mpETHTotalSupplyBefore);
     });
+
+    it("Deposit ETH and get mpETH from LiquidUnstakePool", async () => {
+      const value = toEthers(2);
+      await liquidUnstakePool.depositETH(owner.address, { value });
+      await staking.approve(liquidUnstakePool.address, value);
+      await liquidUnstakePool.swapmpETHforETH(value, 0);
+      const valueMinusFee = toEthers(1.9766);
+      const poolmpETHBalanceBefore = await staking.balanceOf(
+        liquidUnstakePool.address
+      );
+      expect(poolmpETHBalanceBefore).to.eq(valueMinusFee);
+      const mpETHTotalSupplyBefore = await staking.totalSupply();
+      await staking.depositETH(owner.address, { value: valueMinusFee });
+      expect(await staking.balanceOf(liquidUnstakePool.address)).to.eq(0);
+      expect(await staking.totalSupply()).to.eq(mpETHTotalSupplyBefore);
+    });
   });
 
   describe("Activate validator", function () {
@@ -177,6 +199,7 @@ describe("Staking", function () {
       await staking.depositETH(owner.address, { value: toEthers(32) });
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0);
       expect(await staking.nodesTotalBalance()).to.eq(toEthers(32));
+      expect(await staking.totalNodesActivated()).to.eq(1);
     });
 
     it("Stake using half ETH from LiquidUnstakePool", async () => {
@@ -191,6 +214,7 @@ describe("Staking", function () {
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(0);
       expect(await liquidUnstakePool.ethBalance()).to.eq(0);
       expect(await staking.stakingBalance()).to.eq(0);
+      expect(await staking.totalNodesActivated()).to.eq(2);
     });
 
     it("Try to stake using ETH only from must revert with ETH/mpETH proportion", async () => {
@@ -204,25 +228,19 @@ describe("Staking", function () {
     });
 
     it("Stake using ETH only from LiquidUnstakePool", async () => {
-      ({
-        owner,
-        activator,
-        otherAccount,
-        staking,
-        ACTIVATOR_ROLE,
-        liquidUnstakePool,
-      } = await loadFixture(deployTest));
       const value = toEthers(32);
+      const liquidPreviousBalance = await provider.getBalance(liquidUnstakePool.address)
       await liquidUnstakePool.depositETH(owner.address, { value });
-      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value);
-      expect(await liquidUnstakePool.ethBalance()).to.eq(value);
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(liquidPreviousBalance.add(value));
+      expect(await liquidUnstakePool.ethBalance()).to.eq(liquidPreviousBalance.add(value));
       const stakingBalanceBefore = await staking.stakingBalance();
       await staking
         .connect(activator)
         .pushToBeacon([getNextValidator()], value);
-      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(0);
-      expect(await liquidUnstakePool.ethBalance()).to.eq(0);
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(liquidPreviousBalance);
+      expect(await liquidUnstakePool.ethBalance()).to.eq(liquidPreviousBalance);
       expect(await staking.stakingBalance()).to.eq(stakingBalanceBefore);
+      expect(await staking.totalNodesActivated()).to.eq(3);
     });
   });
 
@@ -263,9 +281,11 @@ describe("Staking", function () {
     });
 
     it("Update nodes balance to same amount", async () => {
+      expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1));
       await staking.connect(updater).updateNodesBalance(nodesBalance);
       expect(await staking.nodesTotalBalance()).to.eq(nodesBalance);
       expect(await staking.totalAssets()).to.eq(depositValue);
+      expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1));
     });
 
     it("Update before timelock must revert", async () => {
@@ -275,6 +295,7 @@ describe("Staking", function () {
     });
 
     it("Update nodes balance and mint mpETH for treasury", async () => {
+      expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1));
       const timelock = await staking.UPDATE_BALANCE_TIMELOCK();
       await time.increase(timelock);
       const stakingFee = await staking.rewardsFee();
@@ -326,16 +347,12 @@ describe("Staking", function () {
       ).to.be.revertedWith("ERC4626: redeem more than max");
     });
 
-    it("Withdraw must revert with not implemented", async () => {
-      await expect(
-        staking.withdraw(0, owner.address, owner.address)
-      ).to.be.revertedWith("Withdraw not implemented");
+    it("Withdraw must not revert", async () => {
+      await staking.withdraw(0, owner.address, owner.address);
     });
 
-    it("Redeem must revert with not implemented", async () => {
-      await expect(
-        staking.redeem(0, owner.address, owner.address)
-      ).to.be.revertedWith("Withdraw not implemented");
+    it("Redeem must not revert", async () => {
+      await staking.redeem(0, owner.address, owner.address);
     });
   });
 });
