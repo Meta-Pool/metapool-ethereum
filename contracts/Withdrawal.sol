@@ -19,6 +19,7 @@ contract Withdrawal is OwnableUpgradeable {
     uint32 public WITHDRAWAL_DELAY;
     uint public totalPendingWithdraw;
     mapping(address => withdrawRequest) public pendingWithdraws;
+    uint[7] public pendingWithdrawsPerDay;
 
     event RequestWithdraw(
         address indexed user,
@@ -53,6 +54,8 @@ contract Withdrawal is OwnableUpgradeable {
         pendingWithdraws[_user].amount += _amountOut;
         pendingWithdraws[_user].unlockTimestamp = unlockTimestamp;
         totalPendingWithdraw += _amountOut;
+        uint unlockDay = (unlockTimestamp / 1 days) % 7;
+        pendingWithdrawsPerDay[unlockDay] += _amountOut;
         emit RequestWithdraw(_user, _amountOut, unlockTimestamp);
     }
 
@@ -66,6 +69,8 @@ contract Withdrawal is OwnableUpgradeable {
         require(_withdrawR.amount > 0, "Nothing to withdraw");
         pendingWithdraws[msg.sender] = withdrawRequest(0, 0);
         totalPendingWithdraw -= _withdrawR.amount;
+        uint currentDay = (block.timestamp / 1 days) % 7;
+        pendingWithdrawsPerDay[currentDay] -= _withdrawR.amount;
         payable(msg.sender).sendValue(_withdrawR.amount);
         emit CompleteWithdraw(
             msg.sender,
