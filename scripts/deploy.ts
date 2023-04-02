@@ -9,10 +9,8 @@ const {
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log(
-    "Deploying the contracts with the account:",
-    await deployer.getAddress()
-  );
+  console.log("Deploying the contracts with the account:", await deployer.getAddress());
+
   const Staking = await ethers.getContractFactory("Staking");
   const staking = await upgrades.deployProxy(
     Staking,
@@ -30,9 +28,13 @@ async function main() {
   await staking.deployed();
   console.log(`Staking deployed to ${staking.address}`);
 
-  const LiquidUnstakePool = await ethers.getContractFactory(
-    "LiquidUnstakePool"
-  );
+  const Withdrawal = await ethers.getContractFactory("Withdrawal");
+  const withdrawal = await Withdrawal.deploy(staking.address);
+  await withdrawal.deployed();
+  await staking.updateWithdrawal(withdrawal.address);
+  console.log(`Withdrawal deployed to ${withdrawal.address}`);
+
+  const LiquidUnstakePool = await ethers.getContractFactory("LiquidUnstakePool");
   const liquidUnstakePool = await upgrades.deployProxy(
     LiquidUnstakePool,
     [staking.address, ADDRESSES[NATIVE], deployer.address],
@@ -44,7 +46,6 @@ async function main() {
   console.log(`LiquidUnstakePool deployed to ${liquidUnstakePool.address}`);
 
   await staking.updateLiquidPool(liquidUnstakePool.address);
-
 }
 
 main().catch((error) => {

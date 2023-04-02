@@ -2,7 +2,6 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@openzeppelin/hardhat-upgrades";
 import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-gas-reporter";
-import "./tasks/eth_balance";
 
 require("dotenv").config();
 
@@ -30,7 +29,7 @@ const config: HardhatUserConfig = {
     },
   },
   gasReporter: {
-    enabled: true,
+    enabled: JSON.parse(process.env.REPORT_GAS || "false")
   },
   etherscan: {
     apiKey: String(process.env.API_KEY),
