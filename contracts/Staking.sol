@@ -89,9 +89,7 @@ contract Staking is
         nodesBalanceUnlockTime = uint64(block.timestamp);
     }
 
-    receive() external payable {
-        stakingBalance += msg.value;
-    }
+    receive() external payable {}
 
     /// @notice Returns total ETH held by vault + validators
     function totalAssets() public view override returns (uint) {
@@ -300,7 +298,7 @@ contract Staking is
             emit Mint(_caller, _receiver, _assets, _shares);
         }
 
-        stakingBalance += _assets;
+        stakingBalance = address(this).balance;
         emit Deposit(_caller, _receiver, _assets + assetsToPool, _shares + availableShares);
     }
 }
