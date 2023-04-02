@@ -41,7 +41,7 @@ contract Staking is
     uint16 public rewardsFee;
     bytes32 public constant UPDATER_ROLE = keccak256("UPDATER_ROLE");
     bytes32 public constant ACTIVATOR_ROLE = keccak256("ACTIVATOR_ROLE");
-    address public withdrawal;
+    address payable public withdrawal;
 
     event Mint(
         address indexed sender,
@@ -106,7 +106,7 @@ contract Staking is
         return MIN_DEPOSIT;
     }
 
-    function updateWithdrawal(address _withdrawal)
+    function updateWithdrawal(address payable _withdrawal)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {

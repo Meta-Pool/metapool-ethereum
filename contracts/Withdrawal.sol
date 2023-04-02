@@ -18,7 +18,7 @@ contract Withdrawal is OwnableUpgradeable {
     address public mpETH;
     uint32 public WITHDRAWAL_DELAY;
     uint public totalPendingWithdraw;
-    mapping(address => withdrawRequest) pendingWithdraws;
+    mapping(address => withdrawRequest) public pendingWithdraws;
 
     event RequestWithdraw(
         address indexed user,
@@ -30,6 +30,8 @@ contract Withdrawal is OwnableUpgradeable {
         uint amount,
         uint unlockTimestamp
     );
+
+    receive() external payable {}
 
     function initialize(address _mpETH) external initializer {
         mpETH = _mpETH;
