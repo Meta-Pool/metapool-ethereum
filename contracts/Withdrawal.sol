@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
 
 struct withdrawRequest {
     uint amount;
     uint unlockTimestamp;
 }
 
-contract Withdrawal is Ownable {
-    using Address for address payable;
-    using SafeERC20 for IERC20;
+contract Withdrawal is OwnableUpgradeable {
+    using AddressUpgradeable for address payable;
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    address public immutable mpETH;
+    address public mpETH;
     uint32 public WITHDRAWAL_DELAY;
     uint public totalPendingWithdraw;
     mapping(address => withdrawRequest) pendingWithdraws;
@@ -31,7 +31,7 @@ contract Withdrawal is Ownable {
         uint unlockTimestamp
     );
 
-    constructor(address _mpETH) {
+    function initialize(address _mpETH) external initializer {
         mpETH = _mpETH;
         WITHDRAWAL_DELAY = 4 days;
     }
