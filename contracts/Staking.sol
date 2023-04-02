@@ -106,16 +106,6 @@ contract Staking is
         return MIN_DEPOSIT;
     }
 
-    /// @notice Will return the max withdraw for an user once Ethereum enables staking withdrawal
-    function maxWithdraw(address) public pure override returns (uint) {
-        return 0;
-    }
-
-    /// @notice Will return the max redeem for an user once Ethereum enables staking withdrawal
-    function maxRedeem(address) public view virtual override returns (uint256) {
-        return 0;
-    }
-
     function updateWithdrawal(address _withdrawal)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
