@@ -1,7 +1,7 @@
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { Contract } from "ethers";
+import { BigNumber, Contract } from "ethers";
 import { ethers, upgrades } from "hardhat";
 import { NETWORK } from "../lib/env";
 const {
@@ -75,12 +75,17 @@ describe("Staking", function () {
       const withdrawalDelay = await withdrawal.WITHDRAWAL_DELAY();
       await staking.connect(user).approve(staking.address, userBalance);
       await staking.connect(user).withdraw(userBalance, user.address, user.address);
+      const unlockTimestamp = BigNumber.from(
+        (await provider.getBlock("latest")).timestamp + withdrawalDelay
+      );
+      const unlockDay = unlockTimestamp.div(24 * 60 * 60).mod(7);
       expect(await staking.balanceOf(user.address)).to.eq(0);
       expect((await withdrawal.pendingWithdraws(user.address)).amount).to.eq(userBalance);
       expect((await withdrawal.pendingWithdraws(user.address)).unlockTimestamp).to.eq(
-        (await provider.getBlock("latest")).timestamp + withdrawalDelay
+        unlockTimestamp
       );
       expect(await withdrawal.totalPendingWithdraw()).to.eq(userBalance);
+      expect(await withdrawal.pendingWithdrawsPerDay(unlockDay)).to.eq(userBalance);
     });
 
     it("Complete withdraw must revert before unlock time", async () => {
@@ -103,10 +108,16 @@ describe("Staking", function () {
         to: withdrawal.address,
         value: (await withdrawal.pendingWithdraws(user.address)).amount,
       });
+      const withdrawalDelay = await withdrawal.WITHDRAWAL_DELAY();
+      const unlockTimestamp = BigNumber.from(
+        (await provider.getBlock("latest")).timestamp + withdrawalDelay
+      );
+      const unlockDay = unlockTimestamp.div(24 * 60 * 60).mod(7);
       await withdrawal.connect(user).completeWithdraw();
       expect((await withdrawal.pendingWithdraws(user.address)).amount).to.eq(0);
       expect((await withdrawal.pendingWithdraws(user.address)).unlockTimestamp).to.eq(0);
       expect(await withdrawal.totalPendingWithdraw()).to.eq(0);
+      expect(await withdrawal.pendingWithdrawsPerDay(unlockDay)).to.eq(0);
     });
   });
 });
