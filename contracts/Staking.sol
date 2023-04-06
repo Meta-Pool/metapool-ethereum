@@ -156,7 +156,6 @@ contract Staking is
             uint assetsAsFee = (diff * rewardsFee) / 10000;
             uint shares = previewDeposit(assetsAsFee);
             _mint(treasury, shares);
-            emit Mint(msg.sender, treasury, assetsAsFee, shares);
         }
 
         estimatedRewardsPerSecond = uint64(
@@ -268,7 +267,7 @@ contract Staking is
         uint availableShares;
         uint assetsToPool;
 
-        if(msg.sender != liquidUnstakePool){
+        if (msg.sender != liquidUnstakePool) {
             availableShares = MathUpgradeable.min(
                 balanceOf(liquidUnstakePool),
                 _shares
@@ -287,10 +286,7 @@ contract Staking is
             }
         }    
 
-        if (_shares > 0) {
-            _mint(_receiver, _shares);
-            emit Mint(_caller, _receiver, _assets, _shares);
-        }
+        if (_shares > 0) _mint(_receiver, _shares);
 
         stakingBalance += _assets;
         emit Deposit(_caller, _receiver, _assets + assetsToPool, _shares + availableShares);
