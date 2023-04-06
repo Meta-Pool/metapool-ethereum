@@ -89,6 +89,10 @@ contract Staking is
         nodesBalanceUnlockTime = uint64(block.timestamp);
     }
 
+    function stakeWithoutMinting() external payable {
+        stakingBalance += msg.value;
+    }
+
     receive() external payable {}
 
     /// @notice Returns total ETH held by vault + validators
@@ -251,15 +255,15 @@ contract Staking is
         uint256 _assets,
         uint256 _shares
     ) internal override {
-        if (_assets != 0) {
+        if (_assets == 0) { // ETH deposit
+            _assets = msg.value;
+        } else { // WETH deposit
             IERC20Upgradeable(asset()).safeTransferFrom(
                 msg.sender,
                 address(this),
                 _assets
             );
             IWETH(asset()).withdraw(_assets);
-        } else {
-            _assets = msg.value;
         }
         uint availableShares;
         uint assetsToPool;
@@ -288,7 +292,7 @@ contract Staking is
             emit Mint(_caller, _receiver, _assets, _shares);
         }
 
-        stakingBalance = address(this).balance;
+        stakingBalance += _assets;
         emit Deposit(_caller, _receiver, _assets + assetsToPool, _shares + availableShares);
     }
 }
