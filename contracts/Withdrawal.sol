@@ -5,6 +5,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
+import "./Staking.sol";
 
 struct withdrawRequest {
     uint amount;
@@ -15,7 +16,7 @@ contract Withdrawal is OwnableUpgradeable {
     using AddressUpgradeable for address payable;
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    address public mpETH;
+    address payable public mpETH;
     uint32 public WITHDRAWAL_DELAY;
     uint public totalPendingWithdraw;
     mapping(address => withdrawRequest) public pendingWithdraws;
@@ -34,9 +35,10 @@ contract Withdrawal is OwnableUpgradeable {
 
     receive() external payable {}
 
-    function initialize(address _mpETH) external initializer {
+    function initialize(address payable _mpETH) external initializer {
         mpETH = _mpETH;
         WITHDRAWAL_DELAY = 4 days;
+        __Ownable_init();
     }
 
     /// @notice Update withdrawal delay. Will only affect withdrawals after this update
@@ -84,6 +86,6 @@ contract Withdrawal is OwnableUpgradeable {
     function stakeRemaining() external onlyOwner {
         uint availableETH = address(this).balance - totalPendingWithdraw;
         require(availableETH > 0, "No ETH available to stake");
-        payable(mpETH).sendValue(availableETH);
+        Staking(mpETH).stakeWithoutMinting{value: availableETH}();
     }
 }
