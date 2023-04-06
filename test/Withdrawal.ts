@@ -120,4 +120,53 @@ describe("Staking", function () {
       expect(await withdrawal.pendingWithdrawsPerDay(unlockDay)).to.eq(0);
     });
   });
+
+  describe("Stake remaining", async () => {
+    var staking: Contract,
+      withdrawal: Contract,
+      owner: SignerWithAddress,
+      user: SignerWithAddress;
+
+    it("Revert stake with 0 ETH balance", async () => {
+      ({ user, owner, staking, withdrawal } = await loadFixture(deployTest));
+
+      await expect(withdrawal.stakeRemaining()).to.be.revertedWith(
+        "No ETH available to stake"
+      );
+    });
+
+    it("Revert staking with pending withdraw gt balance", async () => {
+      const value = toEthers(32);
+      await staking.connect(user).depositETH(user.address, { value });
+      await staking.connect(user).approve(staking.address, value);
+      await staking.connect(user).withdraw(value, user.address, user.address);
+      expect(await withdrawal.totalPendingWithdraw()).to.eq(value);
+
+      await owner.sendTransaction({
+        to: withdrawal.address,
+        value,
+      });
+
+      await expect(withdrawal.stakeRemaining()).to.be.revertedWith(
+        "No ETH available to stake"
+      );
+    });
+
+    it("Stake remaining ETH", async () => {
+      ({ user, owner, staking, withdrawal } = await loadFixture(deployTest));
+
+      const value = toEthers(32);
+      await owner.sendTransaction({
+        to: withdrawal.address,
+        value,
+      });
+
+      expect(await provider.getBalance(withdrawal.address)).eq(value);
+      expect(await provider.getBalance(staking.address)).eq(0);
+      await withdrawal.stakeRemaining();
+      expect(await provider.getBalance(withdrawal.address)).eq(0);
+      expect(await provider.getBalance(staking.address)).eq(value);
+      expect(await staking.stakingBalance()).eq(value);
+    });
+  });
 });
