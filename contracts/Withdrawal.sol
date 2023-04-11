@@ -9,7 +9,7 @@ import "./Staking.sol";
 
 struct withdrawRequest {
     uint amount;
-    uint unlockTimestamp;
+    uint unlockEpoch;
 }
 
 contract Withdrawal is OwnableUpgradeable {
@@ -17,33 +17,31 @@ contract Withdrawal is OwnableUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     address payable public mpETH;
-    uint32 public WITHDRAWAL_DELAY;
     uint public totalPendingWithdraw;
+    uint private startTimestamp;
     mapping(address => withdrawRequest) public pendingWithdraws;
-    uint[7] public pendingWithdrawsPerDay;
 
     event RequestWithdraw(
         address indexed user,
         uint amount,
-        uint unlockTimestamp
+        uint unlockEpoch
     );
     event CompleteWithdraw(
         address indexed user,
         uint amount,
-        uint unlockTimestamp
+        uint unlockEpoch
     );
 
     receive() external payable {}
 
     function initialize(address payable _mpETH) external initializer {
+        startTimestamp = block.timestamp;
         mpETH = _mpETH;
-        WITHDRAWAL_DELAY = 4 days;
         __Ownable_init();
     }
 
-    /// @notice Update withdrawal delay. Will only affect withdrawals after this update
-    function updateWithdrawalDelay(uint32 _delay) external onlyOwner {
-        WITHDRAWAL_DELAY = _delay;
+    function getEpoch() view public returns (uint epoch) {
+        return (block.timestamp - startTimestamp) / 7 days;
     }
 
     /// @notice Queue ETH withdrawal
@@ -52,38 +50,34 @@ contract Withdrawal is OwnableUpgradeable {
     /// @param _user Owner of the withdrawal
     function requestWithdraw(uint _amountOut, address _user) external {
         require(msg.sender == mpETH, "Caller is not staking contract");
-        uint unlockTimestamp = block.timestamp + WITHDRAWAL_DELAY;
+        uint unlockEpoch = getEpoch() + 1;
         pendingWithdraws[_user].amount += _amountOut;
-        pendingWithdraws[_user].unlockTimestamp = unlockTimestamp;
+        pendingWithdraws[_user].unlockEpoch = unlockEpoch;
         totalPendingWithdraw += _amountOut;
-        uint unlockDay = (unlockTimestamp / 1 days) % 7;
-        pendingWithdrawsPerDay[unlockDay] += _amountOut;
-        emit RequestWithdraw(_user, _amountOut, unlockTimestamp);
+        emit RequestWithdraw(_user, _amountOut, unlockEpoch);
     }
 
     /// @notice Process pending withdrawal if there's enough ETH
     function completeWithdraw() external {
         withdrawRequest memory _withdrawR = pendingWithdraws[msg.sender];
         require(
-            block.timestamp >= _withdrawR.unlockTimestamp,
+            getEpoch() >= _withdrawR.unlockEpoch,
             "Withdrawal delay not reached"
         );
         require(_withdrawR.amount > 0, "Nothing to withdraw");
         pendingWithdraws[msg.sender] = withdrawRequest(0, 0);
         totalPendingWithdraw -= _withdrawR.amount;
-        uint currentDay = (block.timestamp / 1 days) % 7;
-        pendingWithdrawsPerDay[currentDay] -= _withdrawR.amount;
         payable(msg.sender).sendValue(_withdrawR.amount);
         emit CompleteWithdraw(
             msg.sender,
             _withdrawR.amount,
-            _withdrawR.unlockTimestamp
+            _withdrawR.unlockEpoch
         );
     }
 
     /// @notice Send ETH balance to Staking
     /// @dev Send ETH over totalPendingWithdraw to Staking without minting mpETH
-    function stakeRemaining() external onlyOwner {
+    function depositRemaining() external onlyOwner {
         uint availableETH = address(this).balance - totalPendingWithdraw;
         require(availableETH > 0, "No ETH available to stake");
         Staking(mpETH).stakeWithoutMinting{value: availableETH}();
