@@ -72,20 +72,17 @@ describe("Staking", function () {
 
     it("Request withdraw", async () => {
       const userBalance = await staking.balanceOf(user.address);
-      const withdrawalDelay = await withdrawal.WITHDRAWAL_DELAY();
       await staking.connect(user).approve(staking.address, userBalance);
       await staking.connect(user).withdraw(userBalance, user.address, user.address);
-      const unlockTimestamp = BigNumber.from(
-        (await provider.getBlock("latest")).timestamp + withdrawalDelay
+      const unlockEpoch = BigNumber.from(
+        (await withdrawal.pendingWithdraws(user.address)).unlockEpoch
       );
-      const unlockDay = unlockTimestamp.div(24 * 60 * 60).mod(7);
       expect(await staking.balanceOf(user.address)).to.eq(0);
       expect((await withdrawal.pendingWithdraws(user.address)).amount).to.eq(userBalance);
-      expect((await withdrawal.pendingWithdraws(user.address)).unlockTimestamp).to.eq(
-        unlockTimestamp
+      expect((await withdrawal.pendingWithdraws(user.address)).unlockEpoch).to.eq(
+        unlockEpoch
       );
       expect(await withdrawal.totalPendingWithdraw()).to.eq(userBalance);
-      expect(await withdrawal.pendingWithdrawsPerDay(unlockDay)).to.eq(userBalance);
     });
 
     it("Complete withdraw must revert before unlock time", async () => {
@@ -95,9 +92,7 @@ describe("Staking", function () {
     });
 
     it("Complete withdraw must revert with insufficient balance", async () => {
-      const unlockTimestamp = (await withdrawal.pendingWithdraws(user.address))
-        .unlockTimestamp;
-      await time.increaseTo(unlockTimestamp);
+      await time.increase(7 * 24 * 60 * 60);
       await expect(withdrawal.connect(user).completeWithdraw()).to.be.revertedWith(
         "Address: insufficient balance"
       );
@@ -108,16 +103,10 @@ describe("Staking", function () {
         to: withdrawal.address,
         value: (await withdrawal.pendingWithdraws(user.address)).amount,
       });
-      const withdrawalDelay = await withdrawal.WITHDRAWAL_DELAY();
-      const unlockTimestamp = BigNumber.from(
-        (await provider.getBlock("latest")).timestamp + withdrawalDelay
-      );
-      const unlockDay = unlockTimestamp.div(24 * 60 * 60).mod(7);
       await withdrawal.connect(user).completeWithdraw();
       expect((await withdrawal.pendingWithdraws(user.address)).amount).to.eq(0);
-      expect((await withdrawal.pendingWithdraws(user.address)).unlockTimestamp).to.eq(0);
+      expect((await withdrawal.pendingWithdraws(user.address)).unlockEpoch).to.eq(0);
       expect(await withdrawal.totalPendingWithdraw()).to.eq(0);
-      expect(await withdrawal.pendingWithdrawsPerDay(unlockDay)).to.eq(0);
     });
   });
 
@@ -130,7 +119,7 @@ describe("Staking", function () {
     it("Revert stake with 0 ETH balance", async () => {
       ({ user, owner, staking, withdrawal } = await loadFixture(deployTest));
 
-      await expect(withdrawal.stakeRemaining()).to.be.revertedWith(
+      await expect(withdrawal.depositRemaining()).to.be.revertedWith(
         "No ETH available to stake"
       );
     });
@@ -147,7 +136,7 @@ describe("Staking", function () {
         value,
       });
 
-      await expect(withdrawal.stakeRemaining()).to.be.revertedWith(
+      await expect(withdrawal.depositRemaining()).to.be.revertedWith(
         "No ETH available to stake"
       );
     });
@@ -163,7 +152,7 @@ describe("Staking", function () {
 
       expect(await provider.getBalance(withdrawal.address)).eq(value);
       expect(await provider.getBalance(staking.address)).eq(0);
-      await withdrawal.stakeRemaining();
+      await withdrawal.depositRemaining();
       expect(await provider.getBalance(withdrawal.address)).eq(0);
       expect(await provider.getBalance(staking.address)).eq(value);
       expect(await staking.stakingBalance()).eq(value);
