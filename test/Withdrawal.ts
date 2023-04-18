@@ -11,10 +11,21 @@ const {
   NATIVE,
 } = require(`../lib/constants/${NETWORK}`);
 import { toEthers } from "../lib/utils";
+import * as depositData from "../test_deposit_data.json";
 
 const provider = ethers.provider;
 
-describe("Staking", function () {
+const getNextValidator = () =>
+  Object.values(
+    (({ pubkey, withdrawal_credentials, signature, deposit_data_root }) => ({
+      pubkey,
+      withdrawal_credentials,
+      signature,
+      deposit_data_root,
+    }))(depositData.default.pop())
+  );
+
+describe("Withdrawal", function () {
   async function deployTest() {
     const [owner, updater, activator, treasury, user] = await ethers.getSigners();
     const Staking = await ethers.getContractFactory("Staking");
@@ -114,14 +125,15 @@ describe("Staking", function () {
     var staking: Contract,
       withdrawal: Contract,
       owner: SignerWithAddress,
-      user: SignerWithAddress;
+      user: SignerWithAddress,
+      activator: SignerWithAddress;
 
     it("Revert stake with 0 ETH balance", async () => {
-      ({ user, owner, staking, withdrawal } = await loadFixture(deployTest));
+      ({ user, owner, staking, withdrawal, activator } = await loadFixture(deployTest));
 
-      await expect(withdrawal.depositRemaining()).to.be.revertedWith(
-        "No ETH available to stake"
-      );
+      await expect(
+        staking.connect(activator).pushToBeacon([getNextValidator()], 0, toEthers(32))
+      ).to.be.revertedWith("Not enough ETH to stake");
     });
 
     it("Revert staking with pending withdraw gt balance", async () => {
@@ -136,9 +148,9 @@ describe("Staking", function () {
         value,
       });
 
-      await expect(withdrawal.depositRemaining()).to.be.revertedWith(
-        "No ETH available to stake"
-      );
+      await expect(
+        staking.connect(activator).pushToBeacon([getNextValidator()], 0, toEthers(32))
+      ).to.be.revertedWith("Not enough ETH to stake");
     });
 
     it("Stake remaining ETH", async () => {
@@ -152,10 +164,13 @@ describe("Staking", function () {
 
       expect(await provider.getBalance(withdrawal.address)).eq(value);
       expect(await provider.getBalance(staking.address)).eq(0);
-      await withdrawal.depositRemaining();
+      expect(await staking.stakingBalance()).eq(0);
+      await staking
+        .connect(activator)
+        .pushToBeacon([getNextValidator()], 0, toEthers(32));
       expect(await provider.getBalance(withdrawal.address)).eq(0);
-      expect(await provider.getBalance(staking.address)).eq(value);
-      expect(await staking.stakingBalance()).eq(value);
+      expect(await provider.getBalance(staking.address)).eq(0);
+      expect(await staking.stakingBalance()).eq(0);
     });
   });
 });

@@ -183,13 +183,13 @@ describe("Staking", function () {
       } = await loadFixture(deployTest));
       expect(await staking.nodesTotalBalance()).to.eq(toEthers(0));
       await expect(
-        staking.connect(activator).pushToBeacon([getNextValidator()], 0)
+        staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
       ).to.be.revertedWith("Not enough balance");
     });
 
     it("Stake without permissions must revert", async () => {
       await expect(
-        staking.connect(otherAccount).pushToBeacon([getNextValidator()], 0)
+        staking.connect(otherAccount).pushToBeacon([getNextValidator()], 0, 0)
       ).to.be.revertedWith(
         `AccessControl: account ${otherAccount.address.toLowerCase()} is missing role ${ACTIVATOR_ROLE}`
       );
@@ -197,7 +197,7 @@ describe("Staking", function () {
 
     it("Stake 32 ETH", async () => {
       await staking.depositETH(owner.address, { value: toEthers(32) });
-      await staking.connect(activator).pushToBeacon([getNextValidator()], 0);
+      await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0);
       expect(await staking.nodesTotalBalance()).to.eq(toEthers(32));
       expect(await staking.totalNodesActivated()).to.eq(1);
     });
@@ -208,9 +208,10 @@ describe("Staking", function () {
       await liquidUnstakePool.depositETH(owner.address, { value });
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value);
       expect(await liquidUnstakePool.ethBalance()).to.eq(value);
+      expect(await staking.stakingBalance()).to.eq(value);
       await staking
         .connect(activator)
-        .pushToBeacon([getNextValidator()], value);
+        .pushToBeacon([getNextValidator()], value, 0);
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(0);
       expect(await liquidUnstakePool.ethBalance()).to.eq(0);
       expect(await staking.stakingBalance()).to.eq(0);
@@ -223,7 +224,7 @@ describe("Staking", function () {
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value);
       expect(await liquidUnstakePool.ethBalance()).to.eq(value);
       await expect(
-        staking.connect(activator).pushToBeacon([getNextValidator()], value)
+        staking.connect(activator).pushToBeacon([getNextValidator()], value, 0)
       ).to.be.revertedWith("ETH requested reach min ETH/mpETH proportion");
     });
 
@@ -236,7 +237,7 @@ describe("Staking", function () {
       const stakingBalanceBefore = await staking.stakingBalance();
       await staking
         .connect(activator)
-        .pushToBeacon([getNextValidator()], value);
+        .pushToBeacon([getNextValidator()], value, 0);
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(liquidPreviousBalance);
       expect(await liquidUnstakePool.ethBalance()).to.eq(liquidPreviousBalance);
       expect(await staking.stakingBalance()).to.eq(stakingBalanceBefore);
@@ -264,7 +265,7 @@ describe("Staking", function () {
       await staking.depositETH(owner.address, { value: depositValue });
       await staking.connect(activator).pushToBeacon(
         [...Array(newNodes).keys()].map((_) => getNextValidator()),
-        0
+        0, 0
       );
       expect(await staking.nodesTotalBalance()).to.eq(nodesBalance);
       await expect(
