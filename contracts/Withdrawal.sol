@@ -21,16 +21,8 @@ contract Withdrawal is OwnableUpgradeable {
     uint private startTimestamp;
     mapping(address => withdrawRequest) public pendingWithdraws;
 
-    event RequestWithdraw(
-        address indexed user,
-        uint amount,
-        uint unlockEpoch
-    );
-    event CompleteWithdraw(
-        address indexed user,
-        uint amount,
-        uint unlockEpoch
-    );
+    event RequestWithdraw(address indexed user, uint amount, uint unlockEpoch);
+    event CompleteWithdraw(address indexed user, uint amount, uint unlockEpoch);
 
     receive() external payable {}
 
@@ -38,9 +30,10 @@ contract Withdrawal is OwnableUpgradeable {
         startTimestamp = block.timestamp;
         mpETH = _mpETH;
         __Ownable_init();
+        transferOwnership(_mpETH);
     }
 
-    function getEpoch() view public returns (uint epoch) {
+    function getEpoch() public view returns (uint epoch) {
         return (block.timestamp - startTimestamp) / 7 days;
     }
 
@@ -76,10 +69,16 @@ contract Withdrawal is OwnableUpgradeable {
     }
 
     /// @notice Send ETH balance to Staking
-    /// @dev Send ETH over totalPendingWithdraw to Staking without minting mpETH
-    function depositRemaining() external onlyOwner {
-        uint availableETH = address(this).balance - totalPendingWithdraw;
-        require(availableETH > 0, "No ETH available to stake");
-        Staking(mpETH).stakeWithoutMinting{value: availableETH}();
+    /// @dev Send ETH to Staking. This shouldn't mint new mpETH
+    function getEthForValidator(uint _amount) external onlyOwner {
+        require(_amount <= ethRemaining(), "Not enough ETH to stake");
+        mpETH.sendValue(_amount);
+    }
+
+    function ethRemaining() public view returns (uint) {
+        return
+            (address(this).balance > totalPendingWithdraw)
+                ? address(this).balance - totalPendingWithdraw
+                : 0;
     }
 }

@@ -143,6 +143,7 @@ contract Staking is
             "Unlock time not reached"
         );
         uint _nodesTotalBalance = nodesTotalBalance;
+        _newBalance += Withdrawal(withdrawal).ethRemaining();
         bool balanceIncremented = _newBalance > _nodesTotalBalance;
         uint diff = balanceIncremented
             ? _newBalance - _nodesTotalBalance
@@ -173,21 +174,22 @@ contract Staking is
 
     /// @notice Stake ETH in contract to validators
     /// @param _requestPoolAmount ETH amount to take from LiquidUnstakePool
-    function pushToBeacon(Node[] memory _nodes, uint _requestPoolAmount)
+    /// @param _requestWithdrawalAmount ETH amount to take from Withdrawal
+    function pushToBeacon(Node[] memory _nodes, uint _requestPoolAmount, uint _requestWithdrawalAmount)
         external
         onlyRole(ACTIVATOR_ROLE)
     {
         uint32 nodesLength = uint32(_nodes.length);
         uint requiredBalance = nodesLength * 32 ether;
         require(
-            stakingBalance + _requestPoolAmount >= requiredBalance,
+            stakingBalance + _requestPoolAmount + _requestWithdrawalAmount >= requiredBalance,
             "Not enough balance"
         );
 
         if (_requestPoolAmount > 0)
-            LiquidUnstakePool(liquidUnstakePool).getEthForValidator(
-                _requestPoolAmount
-            );
+            LiquidUnstakePool(liquidUnstakePool).getEthForValidator(_requestPoolAmount);
+        if (_requestWithdrawalAmount > 0)
+            Withdrawal(withdrawal).getEthForValidator(_requestWithdrawalAmount);
         uint32 _totalNodesActivated = totalNodesActivated;
 
         for (uint i = 0; i < nodesLength; i++) {
@@ -201,8 +203,9 @@ contract Staking is
             emit Stake(_totalNodesActivated, _nodes[i].pubkey);
         }
 
-        stakingBalance -= requiredBalance;
-        nodesTotalBalance += requiredBalance;
+        uint requiredBalanceFromStaking = requiredBalance - _requestWithdrawalAmount;
+        stakingBalance -= requiredBalanceFromStaking;
+        nodesTotalBalance += requiredBalanceFromStaking;
         totalNodesActivated = _totalNodesActivated;
     }
 
