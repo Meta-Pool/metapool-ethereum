@@ -89,10 +89,6 @@ contract Staking is
         nodesBalanceUnlockTime = uint64(block.timestamp);
     }
 
-    function stakeWithoutMinting() external payable {
-        stakingBalance += msg.value;
-    }
-
     receive() external payable {}
 
     /// @notice Returns total ETH held by vault + validators
