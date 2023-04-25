@@ -258,33 +258,41 @@ contract Staking is
             );
             IWETH(asset()).withdraw(_assets);
         }
-        uint availableShares;
-        uint assetsToPool;
 
-        // Avoid try to get ETH from LiquidPool if this is also the caller bcs LiquidPool.getEthForValidator called on pushToBeacon also calls depositETH
-        if (msg.sender != liquidUnstakePool) {
-            availableShares = MathUpgradeable.min(
-                balanceOf(liquidUnstakePool),
-                _shares
-            );
-        
-            if (availableShares > 0) {
-                assetsToPool = previewMint(availableShares);
-                require(
-                    LiquidUnstakePool(liquidUnstakePool).swapETHFormpETH{
-                        value: assetsToPool
-                    }(_receiver) == availableShares,
-                    "Pool _shares transfer error"
-                );
-                _shares -= availableShares;
-                _assets -= assetsToPool;
-            }
-        }    
+        (uint sharesFromPool, uint assetsToPool) = _getmpETHFromPool(_shares, _receiver);
+        _shares -= sharesFromPool;
+        _assets -= assetsToPool;
 
         if (_shares > 0) _mint(_receiver, _shares);
 
         stakingBalance += _assets;
-        emit Deposit(_caller, _receiver, _assets + assetsToPool, _shares + availableShares);
+        emit Deposit(_caller, _receiver, _assets + assetsToPool, _shares + sharesFromPool);
+    }
+    
+    /// @notice Try to swap ETH for mpETH in the LiquidPool
+    /// @dev Avoid try to get mpETH from LiquidPool if this is also the caller bcs LiquidPool.getEthForValidator called on pushToBeacon also calls depositETH, making a loop
+    /// @return sharesFromPool Shares (mpETH) received from pool
+    /// @return assetsToPool Assets (ETH) sent to pool to swap for shares
+    function _getmpETHFromPool(
+        uint _shares,
+        address _receiver
+    ) private returns (uint sharesFromPool, uint assetsToPool) {
+        if (msg.sender != liquidUnstakePool) {
+            sharesFromPool = MathUpgradeable.min(
+                balanceOf(liquidUnstakePool),
+                _shares
+            );
+
+            if (sharesFromPool > 0) {
+                assetsToPool = previewMint(sharesFromPool);
+                require(
+                    LiquidUnstakePool(liquidUnstakePool).swapETHFormpETH{
+                        value: assetsToPool
+                    }(_receiver) == sharesFromPool,
+                    "Pool _shares transfer error"
+                );
+            }
+        }
     }
 
     /// @dev Same function as in ERC4626 implementation but instead of transfer assets set pending withdraw on withdrawal contract
