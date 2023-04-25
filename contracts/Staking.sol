@@ -248,6 +248,20 @@ contract Staking is
         uint256 _assets,
         uint256 _shares
     ) internal override {
+        _assets = _getAssetsDeposit(_assets);
+        (uint sharesFromPool, uint assetsToPool) = _getmpETHFromPool(_shares, _receiver);
+        _shares -= sharesFromPool;
+        _assets -= assetsToPool;
+
+        if (_shares > 0) _mint(_receiver, _shares);
+
+        stakingBalance += _assets;
+        emit Deposit(_caller, _receiver, _assets + assetsToPool, _shares + sharesFromPool);
+    }
+
+    /// @dev Convert WETH to ETH if the deposit is in WETH. Receive _assets as 0 if deposit is in ETH
+    /// @return Amount of assets received
+    function _getAssetsDeposit(uint _assets) private returns(uint){
         if (_assets == 0) { // ETH deposit
             _assets = msg.value;
         } else { // WETH deposit. Get WETH and convert to ETH
@@ -258,15 +272,7 @@ contract Staking is
             );
             IWETH(asset()).withdraw(_assets);
         }
-
-        (uint sharesFromPool, uint assetsToPool) = _getmpETHFromPool(_shares, _receiver);
-        _shares -= sharesFromPool;
-        _assets -= assetsToPool;
-
-        if (_shares > 0) _mint(_receiver, _shares);
-
-        stakingBalance += _assets;
-        emit Deposit(_caller, _receiver, _assets + assetsToPool, _shares + sharesFromPool);
+        return _assets;
     }
     
     /// @notice Try to swap ETH for mpETH in the LiquidPool

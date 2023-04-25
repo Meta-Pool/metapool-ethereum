@@ -125,14 +125,23 @@ contract LiquidUnstakePool is
     }
 
     /// @notice Confirm ETH or WETH deposit
-    /// @dev Use ETH or get and convert WETH to ETH, get mpETH from pool and/or mint new mpETH
+    /// @dev Use ETH or get and convert WETH to ETH
     function _deposit(
         address _caller,
         address _receiver,
         uint _assets,
         uint _shares
     ) internal virtual override nonReentrant {
-         if (_assets == 0) { // ETH deposit
+        _assets = _getAssetsDeposit(_assets);
+        _mint(_receiver, _shares);
+        ethBalance += _assets;
+        emit AddLiquidity(_caller, _receiver, _assets, _shares);
+    }
+
+    /// @dev Convert WETH to ETH if the deposit is in WETH. Receive _assets as 0 if deposit is in ETH
+    /// @return Amount of assets received
+    function _getAssetsDeposit(uint _assets) private returns(uint){
+        if (_assets == 0) { // ETH deposit
             _assets = msg.value;
         } else { // WETH deposit. Get WETH and convert to ETH
             IERC20Upgradeable(asset()).safeTransferFrom(
@@ -142,9 +151,7 @@ contract LiquidUnstakePool is
             );
             IWETH(asset()).withdraw(_assets);
         }
-        _mint(_receiver, _shares);
-        ethBalance += _assets;
-        emit AddLiquidity(_caller, _receiver, _assets, _shares);
+        return _assets;
     }
 
     /// @dev Override to revert because the "asset" of the pool are really two assets, ETH and mpETH. So the function can't receive only one asset as parameter
