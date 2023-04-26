@@ -39,7 +39,6 @@ contract Withdrawal is OwnableUpgradeable {
         __Ownable_init();
         startTimestamp = block.timestamp;
         mpETH = _mpETH;
-        transferOwnership(_mpETH);
     }
 
     /// @return epoch Returns the current epoch
@@ -79,7 +78,7 @@ contract Withdrawal is OwnableUpgradeable {
 
     /// @notice Send ETH _amount to Staking
     /// @dev As the validators are always fully disassembled, the contract can have more ETH than the needed for withdrawals. So the Staking can take this ETH and send it again to validators. This shouldn't mint new mpETH
-    function getEthForValidator(uint _amount) external onlyOwner {
+    function getEthForValidator(uint _amount) external onlyStaking {
         require(_amount <= ethRemaining(), "Not enough ETH to stake");
         mpETH.sendValue(_amount);
     }
