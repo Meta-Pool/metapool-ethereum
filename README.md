@@ -29,7 +29,9 @@ Manage the delayed mpETH redeem of users. Send ETH from rewards and validators d
 Users request the withdraw in the Staking contract and, one epoch later (one week) complete the withdraw on this contract.
 
 ## Contracts functions relations
+Diagrams with the main functions and most significant relations between contracts.
 
+Diagrams figures
 ![diagrams figures](https://github.com/Meta-Pool/metapool-ethereum/blob/main/diagrams/figures.png?raw=true)
 ![staking diagram](https://github.com/Meta-Pool/metapool-ethereum/blob/main/diagrams/staking.png?raw=true)
 ![liquidUnstakePool diagram](https://github.com/Meta-Pool/metapool-ethereum/blob/main/diagrams/liquidUnstakePool.png?raw=true)
