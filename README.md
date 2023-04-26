@@ -30,5 +30,5 @@ Users request the withdraw in the Staking contract and, one epoch later (one wee
 
 ## Contracts functions relations
 
-![diagrams figures](https://github.com/Meta-Pool/metapool-ethereum/tree/main/diagrams/figures.png?raw=true)
-![staking diagram](https://github.com/Meta-Pool/metapool-ethereum/tree/main/diagrams/staking.png?raw=true)
+![diagrams figures](https://github.com/Meta-Pool/metapool-ethereum/blob/main/diagrams/figures.png?raw=true)
+![staking diagram](https://github.com/Meta-Pool/metapool-ethereum/blob/main/diagrams/staking.png?raw=true)
