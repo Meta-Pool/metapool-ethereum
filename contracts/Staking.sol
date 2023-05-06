@@ -36,15 +36,19 @@ contract Staking is
     IDeposit public depositContract;
     uint public nodesTotalBalance;
     uint public stakingBalance;
-    uint public nodesBalanceUnlockTime;
+    uint64 public nodesBalanceUnlockTime;
     uint64 public constant UPDATE_BALANCE_TIMELOCK = 4 hours;
     uint64 public constant MIN_DEPOSIT = 0.01 ether;
-    int public estimatedRewardsPerSecond;
+    uint64 public estimatedRewardsPerSecond;
     uint32 public totalNodesActivated;
     uint16 public rewardsFee;
     bytes32 public constant UPDATER_ROLE = keccak256("UPDATER_ROLE");
     bytes32 public constant ACTIVATOR_ROLE = keccak256("ACTIVATOR_ROLE");
     address payable public withdrawal;
+    // New fixed values to avoid re-deploy for modified storage layout
+    // These variables were already initialized with a temporary function
+    uint public fixedNodesBalanceUnlockTime;
+    int public fixedEstimatedRewardsPerSecond;
 
     event Mint(
         address indexed sender,
@@ -85,7 +89,7 @@ contract Staking is
         updateRewardsFee(500);
         treasury = _treasury;
         depositContract = _depositContract;
-        nodesBalanceUnlockTime = uint64(block.timestamp);
+        fixedNodesBalanceUnlockTime = uint64(block.timestamp);
     }
 
     /// @dev Needed to receive ETH from WETH deposits
@@ -97,8 +101,8 @@ contract Staking is
     function totalAssets() public view override returns (uint) {
         int assets = int(stakingBalance) +
             int(nodesTotalBalance) +
-            estimatedRewardsPerSecond *
-            int(block.timestamp - (nodesBalanceUnlockTime - UPDATE_BALANCE_TIMELOCK));
+            fixedEstimatedRewardsPerSecond *
+            int(block.timestamp - (fixedNodesBalanceUnlockTime - UPDATE_BALANCE_TIMELOCK));
         require(assets >= 0, "Total assets negative value");
         return uint(assets);
     }
@@ -136,7 +140,7 @@ contract Staking is
     /// @notice Updates nodes total balance
     /// @param _newNodesBalance Total current ETH balance from validators
     function updateNodesBalance(uint _newNodesBalance) external onlyRole(UPDATER_ROLE) {
-        uint localNodesBalanceUnlockTime = nodesBalanceUnlockTime;
+        uint localNodesBalanceUnlockTime = fixedNodesBalanceUnlockTime;
         require(block.timestamp >= localNodesBalanceUnlockTime, "Unlock time not reached");
         uint localNodesTotalBalance = nodesTotalBalance;
         uint newNodesTotalBalance = _newNodesBalance +
@@ -159,11 +163,11 @@ contract Staking is
 
         uint newNodesBalanceUnlockTime = block.timestamp +
             UPDATE_BALANCE_TIMELOCK;
-        // If balance decreased estimatedRewardsPerSecond must be negative
-        estimatedRewardsPerSecond = 
+        // If balance decreased fixedEstimatedRewardsPerSecond must be negative
+        fixedEstimatedRewardsPerSecond = 
             (balanceIncremented ? int(diff) : -int(diff)) / 
             int(newNodesBalanceUnlockTime - localNodesBalanceUnlockTime);
-        nodesBalanceUnlockTime = newNodesBalanceUnlockTime;
+        fixedNodesBalanceUnlockTime = newNodesBalanceUnlockTime;
         nodesTotalBalance = newNodesTotalBalance;
         emit UpdateNodesBalance(newNodesTotalBalance);
     }
