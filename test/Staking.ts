@@ -25,7 +25,7 @@ const getNextValidator = () =>
 
 const provider = ethers.provider;
 
-describe("Staking", function () {
+describe("Staking", () => {
   async function deployTest() {
     const [owner, updater, activator, treasury, otherAccount] =
       await ethers.getSigners();
@@ -82,7 +82,7 @@ describe("Staking", function () {
     };
   }
 
-  describe("Deposit", function () {
+  describe("Deposit", () => {
     var staking: Contract,
       liquidUnstakePool: Contract,
       owner: SignerWithAddress,
@@ -164,7 +164,7 @@ describe("Staking", function () {
     });
   });
 
-  describe("Activate validator", function () {
+  describe("Activate validator", () => {
     var staking: Contract,
       liquidUnstakePool: Contract,
       owner: SignerWithAddress,
@@ -245,7 +245,7 @@ describe("Staking", function () {
     });
   });
 
-  describe("Update nodes balance", function () {
+  describe("Update nodes balance", () => {
     var staking: Contract,
       owner: SignerWithAddress,
       updater: SignerWithAddress,
@@ -332,7 +332,7 @@ describe("Staking", function () {
     });
   });
 
-  describe("Withdraw and redeem", function () {
+  describe("Withdraw and redeem", () => {
     var staking: Contract, owner: SignerWithAddress;
 
     it("Withdraw must revert with max withdraw", async () => {
@@ -356,4 +356,34 @@ describe("Staking", function () {
       await staking.redeem(0, owner.address, owner.address);
     });
   });
+
+  describe("Whitelisting", () => {
+    var staking: Contract,
+      owner: SignerWithAddress
+
+    it("Enable whitelisting", async () => {
+      ({ owner, staking } = await loadFixture(
+        deployTest
+      ));
+      expect(await staking.whitelistEnabled()).to.be.false;
+      await staking.toggleWhitelistEnabled();
+      expect(await staking.whitelistEnabled()).to.be.true;
+    });
+
+    it("Revert deposit from non whitelisted", async () => {
+      await expect(staking.depositETH(owner.address, { value: toEthers(32) })).to.be.revertedWith("Account don't whitelisted")
+    });
+
+    it("Whitelist account and deposit", async () => {
+      await staking.addToWhitelist([owner.address]);
+      expect(await staking.whitelistedAccounts(owner.address)).to.be.true;
+      await staking.depositETH(owner.address, { value: toEthers(32) });
+    });
+
+    it("Remove from whitelist", async() => {
+      await staking.removeFromWhitelist([owner.address]);
+      expect(await staking.whitelistedAccounts(owner.address)).to.be.false;
+      await expect(staking.depositETH(owner.address, { value: toEthers(32) })).to.be.revertedWith("Account don't whitelisted")
+    });
+  })
 });
