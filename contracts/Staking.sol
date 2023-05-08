@@ -45,6 +45,8 @@ contract Staking is
     bytes32 public constant UPDATER_ROLE = keccak256("UPDATER_ROLE");
     bytes32 public constant ACTIVATOR_ROLE = keccak256("ACTIVATOR_ROLE");
     address payable public withdrawal;
+    mapping(address => bool) public whitelistedAccounts;
+    bool public whitelistEnabled;
 
     event Mint(
         address indexed sender,
@@ -58,6 +60,12 @@ contract Staking is
 
     modifier validDeposit(uint _amount) {
         require(_amount >= MIN_DEPOSIT, "Deposit at least 0.01 ETH");
+        _;
+    }
+
+    modifier checkWhitelisting() {
+        if(whitelistEnabled) 
+            require(whitelistedAccounts[msg.sender], "Account don't whitelisted");
         _;
     }
 
@@ -101,6 +109,24 @@ contract Staking is
             int(block.timestamp - (nodesBalanceUnlockTime - UPDATE_BALANCE_TIMELOCK));
         require(assets >= 0, "Total assets negative value");
         return uint(assets);
+    }
+
+    function toggleWhitelistEnabled() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        whitelistEnabled = !whitelistEnabled;
+    }
+
+    function addToWhitelist(
+        address[] calldata addresses
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        for (uint i = 0; i < addresses.length; i++)
+            whitelistedAccounts[addresses[i]] = true;
+    }
+
+    function removeFromWhitelist(
+        address[] calldata addresses
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        for (uint i = 0; i < addresses.length; i++)
+            whitelistedAccounts[addresses[i]] = false;
     }
 
     /// @notice Update Withdrawal contract address
@@ -241,7 +267,7 @@ contract Staking is
         address _receiver,
         uint256 _assets,
         uint256 _shares
-    ) internal override {
+    ) internal override checkWhitelisting() {
         _assets = _getAssetsDeposit(_assets);
         (uint sharesFromPool, uint assetsToPool) = _getmpETHFromPool(_shares, _receiver);
         _shares -= sharesFromPool;
