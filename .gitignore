@@ -10,6 +10,4 @@ typechain-types
 cache
 artifacts
 
-test_deposit_data.json
-
 .openzeppelin
