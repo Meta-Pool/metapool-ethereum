@@ -50,13 +50,18 @@ contract LiquidUnstakePool is
     );
     event SendETHForValidator(uint timestamp, uint amount);
 
+    error DepositTooLow(uint256 _minAmount, uint256 _amountSent);
+    error NotAuthorized(address _caller, address _authorized);
+    error SwapMinOut(uint256 _minOut, uint256 _amountOut);
+    error RequestedETHReachMinProportion(uint256 _ethRequested, uint256 _availableETH);
+
     modifier onlyStaking() {
-        require(msg.sender == STAKING, "Caller not Staking");
+        if (msg.sender != STAKING) revert NotAuthorized(msg.sender, STAKING);
         _;
     }
 
     modifier validDeposit(uint _amount) {
-        require(_amount >= MIN_DEPOSIT, "Deposit at least 0.01 ETH");
+        if (_amount < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _amount);
         _;
     }
 
@@ -192,7 +197,7 @@ contract LiquidUnstakePool is
     ) external nonReentrant returns (uint) {
         address payable staking = STAKING;
         (uint amountOut, uint feeAmount) = getAmountOut(_amount);
-        require(amountOut >= _minOut, "Swap doesn't reach min amount");
+        if (amountOut < _minOut) revert SwapMinOut(_minOut, amountOut);
         uint feeToTreasury = (feeAmount * 2500) / 10000;
         ethBalance -= amountOut;
         IERC20Upgradeable(staking).safeTransferFrom(
@@ -229,16 +234,18 @@ contract LiquidUnstakePool is
 
     /// @notice Deposit ETH into Staking
     /// @dev Called from Staking to get ETH for validators
-    function getEthForValidator(
-        uint _amount
-    ) external nonReentrant onlyStaking {
-        require(
-            ethBalance - _amount >=
-                ((totalAssets() - _amount) * minETHPercentage) / 10000,
-            "ETH requested reach min ETH/mpETH proportion"
-        );
+    function getEthForValidator(uint _amount) external nonReentrant onlyStaking {
+        uint currentETHPercentage = (ethBalance * 10000) / totalAssets();
+        uint newEthPercentage = ((ethBalance - _amount) * 10000) / totalAssets();
+        if (newEthPercentage < minETHPercentage) {
+            uint availableETH = ((currentETHPercentage - minETHPercentage) *
+                totalAssets()) / 10000;
+            revert RequestedETHReachMinProportion(_amount, availableETH);
+        }
+        uint previousTotalAssets = totalAssets();
         ethBalance -= _amount;
         Staking(STAKING).depositETH{value: _amount}(address(this));
+        assert(previousTotalAssets == totalAssets());
         emit SendETHForValidator(block.timestamp, _amount);
     }
 
