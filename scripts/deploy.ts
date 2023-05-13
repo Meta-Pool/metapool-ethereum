@@ -1,6 +1,5 @@
 import { ethers, upgrades } from "hardhat";
-const { NETWORK } = require("../lib/env");
-
+const { NETWORK, BOT_ADDRESS } = require("../lib/env");
 const {
   DEPOSIT_CONTRACT_ADDRESS,
   ADDRESSES,
@@ -29,10 +28,17 @@ async function main() {
   console.log(`Staking deployed to ${staking.address}`);
 
   const Withdrawal = await ethers.getContractFactory("Withdrawal");
-  const withdrawal = await Withdrawal.deploy(staking.address);
+  const withdrawal = await upgrades.deployProxy(Withdrawal, [staking.address], {
+    initializer: "initialize",
+  });
   await withdrawal.deployed();
-  await staking.updateWithdrawal(withdrawal.address);
   console.log(`Withdrawal deployed to ${withdrawal.address}`);
+
+  await staking.updateWithdrawal(withdrawal.address);
+  const ACTIVATOR_ROLE = await staking.ACTIVATOR_ROLE();
+  const UPDATER_ROLE = await staking.UPDATER_ROLE();
+  await staking.grantRole(ACTIVATOR_ROLE, BOT_ADDRESS);
+  await staking.grantRole(UPDATER_ROLE, BOT_ADDRESS);
 
   const LiquidUnstakePool = await ethers.getContractFactory("LiquidUnstakePool");
   const liquidUnstakePool = await upgrades.deployProxy(
