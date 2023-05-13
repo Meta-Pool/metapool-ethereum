@@ -102,7 +102,9 @@ contract Staking is
         int assets = int(stakingBalance) +
             int(nodesTotalBalance) +
             fixedEstimatedRewardsPerSecond *
-            int(block.timestamp - (fixedNodesBalanceUnlockTime - UPDATE_BALANCE_TIMELOCK));
+            int(block.timestamp - 
+                (fixedNodesBalanceUnlockTime - UPDATE_BALANCE_TIMELOCK)
+            ) - int(Withdrawal(withdrawal).totalPendingWithdraw());
         require(assets >= 0, "Total assets negative value");
         return uint(assets);
     }
