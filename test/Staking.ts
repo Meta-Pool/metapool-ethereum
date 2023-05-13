@@ -201,7 +201,7 @@ describe("Staking", () => {
     });
 
     it("Stake using half ETH from LiquidUnstakePool", async () => {
-      const value = toEthers(16);
+      const value = toEthers(32);
       await staking.depositETH(owner.address, { value });
       await liquidUnstakePool.depositETH(owner.address, { value });
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value);
@@ -209,21 +209,21 @@ describe("Staking", () => {
       expect(await staking.stakingBalance()).to.eq(value);
       await staking
         .connect(activator)
-        .pushToBeacon([getNextValidator()], value, 0);
-      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(0);
-      expect(await liquidUnstakePool.ethBalance()).to.eq(0);
-      expect(await staking.stakingBalance()).to.eq(0);
+        .pushToBeacon([getNextValidator()], value.div(2), 0);
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value.div(2));
+      expect(await liquidUnstakePool.ethBalance()).to.eq(value.div(2));
+      expect(await staking.stakingBalance()).to.eq(value.div(2));
       expect(await staking.totalNodesActivated()).to.eq(2);
     });
 
     it("Try to stake using ETH only from must revert with ETH/mpETH proportion", async () => {
       const value = toEthers(32);
       await liquidUnstakePool.depositETH(owner.address, { value });
-      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value);
-      expect(await liquidUnstakePool.ethBalance()).to.eq(value);
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(toEthers(48));
+      expect(await liquidUnstakePool.ethBalance()).to.eq(toEthers(48));
       await expect(
         staking.connect(activator).pushToBeacon([getNextValidator()], value, 0)
-      ).to.be.revertedWith("ETH requested reach min ETH/mpETH proportion");
+      ).to.be.revertedWithCustomError(liquidUnstakePool, "RequestedETHReachMinProportion");
     });
 
     it("Stake using ETH only from LiquidUnstakePool", async () => {
