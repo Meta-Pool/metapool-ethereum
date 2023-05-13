@@ -57,6 +57,11 @@ describe("LiquidUnstakePool", function () {
     );
     await liquidUnstakePool.deployed();
 
+    const Withdrawal = await ethers.getContractFactory("Withdrawal");
+    const withdrawal = await upgrades.deployProxy(Withdrawal, [staking.address], { initializer: "initialize"});
+    await withdrawal.deployed();
+
+    await staking.updateWithdrawal(withdrawal.address);
     await staking.updateLiquidPool(liquidUnstakePool.address);
     const wethC = new ethers.Contract(ADDRESSES[NATIVE], WETH_ABI);
     const UPDATER_ROLE = await staking.UPDATER_ROLE();
@@ -89,7 +94,7 @@ describe("LiquidUnstakePool", function () {
       let value = toEthers(0.0099);
       await expect(
         liquidUnstakePool.depositETH(owner.address, { value })
-      ).to.be.rejectedWith("Deposit at least 0.01 ETH");
+      ).to.be.revertedWithCustomError(liquidUnstakePool, "DepositTooLow");
     });
 
     it("Deposit < 0.01 wETH must revert with minAmount", async () => {
@@ -98,7 +103,7 @@ describe("LiquidUnstakePool", function () {
       await wethC.connect(owner).approve(liquidUnstakePool.address, value);
       await expect(
         liquidUnstakePool.deposit(value, owner.address)
-      ).to.be.rejectedWith("Deposit at least 0.01 ETH");
+      ).to.be.revertedWithCustomError(liquidUnstakePool, "DepositTooLow");
     });
 
     it("Deposit ETH", async () => {
