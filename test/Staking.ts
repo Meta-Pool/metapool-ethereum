@@ -95,16 +95,14 @@ describe("Staking", () => {
       let value = toEthers(0.0099);
       await expect(
         staking.depositETH(owner.address, { value })
-      ).to.be.rejectedWith("Deposit at least 0.01 ETH");
+      ).to.be.revertedWithCustomError(staking, "DepositTooLow");
     });
 
     it("Deposit < 0.01 wETH must revert with minAmount", async () => {
       let value = toEthers(0.0099);
       await wethC.connect(owner).deposit({ value });
       await wethC.connect(owner).approve(staking.address, value);
-      await expect(staking.deposit(value, owner.address)).to.be.rejectedWith(
-        "Deposit at least 0.01 ETH"
-      );
+      await expect(staking.deposit(value, owner.address)).to.be.revertedWithCustomError(staking, "DepositTooLow");
     });
 
     it("Deposit ETH", async () => {
@@ -184,7 +182,7 @@ describe("Staking", () => {
       expect(await staking.nodesTotalBalance()).to.eq(toEthers(0));
       await expect(
         staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
-      ).to.be.revertedWith("Not enough balance");
+      ).to.be.revertedWithCustomError(staking, "NotEnoughETHtoStake");
     });
 
     it("Stake without permissions must revert", async () => {
@@ -278,7 +276,7 @@ describe("Staking", () => {
     it("Update balance more than 0.1% must revert", async () => {
       await expect(
         staking.connect(updater).updateNodesBalance(newNodesBalance.add(1))
-      ).to.be.revertedWith("Difference greater than 0.1%");
+      ).to.be.revertedWithCustomError(staking, "UpdateTooBig");
     });
 
     it("Update nodes balance to same amount", async () => {
@@ -292,7 +290,7 @@ describe("Staking", () => {
     it("Update before timelock must revert", async () => {
       await expect(
         staking.connect(updater).updateNodesBalance(newNodesBalance)
-      ).to.be.rejectedWith("Unlock time not reached");
+      ).to.be.revertedWithCustomError(staking, "UpdateBalanceTimestampNotReached");
     });
 
     it("Update nodes balance and mint mpETH for treasury", async () => {
@@ -371,7 +369,7 @@ describe("Staking", () => {
     });
 
     it("Revert deposit from non whitelisted", async () => {
-      await expect(staking.depositETH(owner.address, { value: toEthers(32) })).to.be.revertedWith("Account don't whitelisted")
+      await expect(staking.depositETH(owner.address, { value: toEthers(32) })).to.be.revertedWithCustomError(staking, "UserNotWhitelisted")
     });
 
     it("Whitelist account and deposit", async () => {
@@ -383,7 +381,7 @@ describe("Staking", () => {
     it("Remove from whitelist", async() => {
       await staking.removeFromWhitelist([owner.address]);
       expect(await staking.whitelistedAccounts(owner.address)).to.be.false;
-      await expect(staking.depositETH(owner.address, { value: toEthers(32) })).to.be.revertedWith("Account don't whitelisted")
+      await expect(staking.depositETH(owner.address, { value: toEthers(32) })).to.be.revertedWithCustomError(staking, "UserNotWhitelisted")
     });
   })
 });
