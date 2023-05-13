@@ -49,6 +49,8 @@ contract Staking is
     // These variables were already initialized with a temporary function
     uint public fixedNodesBalanceUnlockTime;
     int public fixedEstimatedRewardsPerSecond;
+    mapping(address => bool) public whitelistedAccounts;
+    bool public whitelistEnabled;
 
     event Mint(
         address indexed sender,
@@ -60,8 +62,15 @@ contract Staking is
     event UpdateNodeData(uint nodeId, Node data);
     event UpdateNodesBalance(uint balance);
 
+    error UserNotWhitelisted(address _user);
+
     modifier validDeposit(uint _amount) {
         require(_amount >= MIN_DEPOSIT, "Deposit at least 0.01 ETH");
+        _;
+    }
+
+    modifier checkWhitelisting() {
+        if (whitelistEnabled && !whitelistedAccounts[msg.sender]) revert UserNotWhitelisted(msg.sender);
         _;
     }
 
@@ -114,6 +123,24 @@ contract Staking is
                 uint(-rewardsSinceUpdate) -
                 Withdrawal(withdrawal).totalPendingWithdraw();
         }
+    }
+
+    function toggleWhitelistEnabled() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        whitelistEnabled = !whitelistEnabled;
+    }
+
+    function addToWhitelist(
+        address[] calldata addresses
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        for (uint i = 0; i < addresses.length; i++)
+            whitelistedAccounts[addresses[i]] = true;
+    }
+
+    function removeFromWhitelist(
+        address[] calldata addresses
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        for (uint i = 0; i < addresses.length; i++)
+            whitelistedAccounts[addresses[i]] = false;
     }
 
     /// @notice Update Withdrawal contract address
@@ -254,7 +281,7 @@ contract Staking is
         address _receiver,
         uint256 _assets,
         uint256 _shares
-    ) internal override {
+    ) internal override checkWhitelisting() {
         _assets = _getAssetsDeposit(_assets);
         (uint sharesFromPool, uint assetsToPool) = _getmpETHFromPool(_shares, _receiver);
         _shares -= sharesFromPool;
