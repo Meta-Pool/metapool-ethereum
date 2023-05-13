@@ -28,8 +28,13 @@ contract Withdrawal is OwnableUpgradeable {
     event RequestWithdraw(address indexed user, uint amount, uint unlockEpoch);
     event CompleteWithdraw(address indexed user, uint amount, uint unlockEpoch);
 
+    error NotAuthorized(address _caller, address _authorized);
+    error EpochNotReached(uint256 _currentEpoch, uint256 _unlockEpoch);
+    error UserDontHavePendingWithdraw(address _user);
+    error NotEnoughETHtoStake(uint256 _requested, uint256 _available);
+
     modifier onlyStaking() {
-        require(msg.sender == mpETH, "Caller not Staking");
+        if (msg.sender != mpETH) revert NotAuthorized(msg.sender, mpETH);
         _;
     }
 
@@ -48,6 +53,7 @@ contract Withdrawal is OwnableUpgradeable {
 
     /// @notice Queue ETH withdrawal
     /// @dev Multiples withdrawals are accumulative, but will restart the epoch unlock
+    /// Shares used for this request should be already bruned in the calling function (Staking._withdraw)
     /// @param _amountOut ETH amount to withdraw
     /// @param _user Owner of the withdrawal
     function requestWithdraw(uint _amountOut, address _user) external onlyStaking {
@@ -61,25 +67,19 @@ contract Withdrawal is OwnableUpgradeable {
     /// @notice Process pending withdrawal if there's enough ETH
     function completeWithdraw() external {
         withdrawRequest memory _withdrawR = pendingWithdraws[msg.sender];
-        require(
-            getEpoch() >= _withdrawR.unlockEpoch,
-            "Withdrawal delay not reached"
-        );
-        require(_withdrawR.amount > 0, "Nothing to withdraw");
+        if (getEpoch() < _withdrawR.unlockEpoch)
+            revert EpochNotReached(getEpoch(), _withdrawR.unlockEpoch);
+        if (_withdrawR.amount == 0) revert UserDontHavePendingWithdraw(msg.sender);
         totalPendingWithdraw -= _withdrawR.amount;
         delete pendingWithdraws[msg.sender];
         payable(msg.sender).sendValue(_withdrawR.amount);
-        emit CompleteWithdraw(
-            msg.sender,
-            _withdrawR.amount,
-            _withdrawR.unlockEpoch
-        );
+        emit CompleteWithdraw(msg.sender, _withdrawR.amount, _withdrawR.unlockEpoch);
     }
 
     /// @notice Send ETH _amount to Staking
     /// @dev As the validators are always fully disassembled, the contract can have more ETH than the needed for withdrawals. So the Staking can take this ETH and send it again to validators. This shouldn't mint new mpETH
     function getEthForValidator(uint _amount) external onlyStaking {
-        require(_amount <= ethRemaining(), "Not enough ETH to stake");
+        if (_amount > ethRemaining()) revert NotEnoughETHtoStake(_amount, ethRemaining());
         mpETH.sendValue(_amount);
     }
 
