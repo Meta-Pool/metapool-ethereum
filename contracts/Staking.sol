@@ -57,15 +57,34 @@ contract Staking is
     event Stake(uint nodeId, bytes indexed pubkey);
     event UpdateNodeData(uint nodeId, Node data);
     event UpdateNodesBalance(uint balance);
+    
+    error UpdateTooBig(
+        uint256 _currentNodesBalance,
+        uint256 _newSubmittedNodesBalance,
+        uint256 _difference,
+        uint256 _maxDifference
+    );
+    error DepositTooLow(uint256 _minAmount, uint256 _amountSent);
+    error UserNotWhitelisted(address _user);
+    error UpdateBalanceTimestampNotReached(
+        uint256 _unlockTimestamp,
+        uint256 _currentTimestamp
+    );
+    error NotEnoughETHtoStake(
+        uint256 _stakingBalance,
+        uint256 _requestedToPool,
+        uint256 _requestedToWithdrawal,
+        uint256 _requiredBalance
+    );
+    error ZeroAddress(string _address);
 
     modifier validDeposit(uint _amount) {
-        require(_amount >= MIN_DEPOSIT, "Deposit at least 0.01 ETH");
+        if (_amount < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _amount);
         _;
     }
 
     modifier checkWhitelisting() {
-        if(whitelistEnabled) 
-            require(whitelistedAccounts[msg.sender], "Account don't whitelisted");
+        if (whitelistEnabled && !whitelistedAccounts[msg.sender]) revert UserNotWhitelisted(msg.sender);
         _;
     }
 
@@ -153,7 +172,7 @@ contract Staking is
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
-        require(_liquidPool != address(0), "Invalid address zero");
+        if (_liquidPool == address(0)) revert ZeroAddress("liquidPool");
         liquidUnstakePool = _liquidPool;
     }
 
@@ -172,7 +191,11 @@ contract Staking is
     /// @param _newNodesBalance Total current ETH balance from validators
     function updateNodesBalance(uint _newNodesBalance) external onlyRole(UPDATER_ROLE) {
         uint localNodesBalanceUnlockTime = nodesBalanceUnlockTime;
-        require(block.timestamp >= localNodesBalanceUnlockTime, "Unlock time not reached");
+        if (block.timestamp < localNodesBalanceUnlockTime)
+            revert UpdateBalanceTimestampNotReached(
+                localNodesBalanceUnlockTime,
+                block.timestamp
+            );
         uint localNodesTotalBalance = nodesTotalBalance;
         uint newNodesTotalBalance = _newNodesBalance +
             Withdrawal(withdrawal).ethRemaining();
@@ -183,8 +206,13 @@ contract Staking is
         uint diff = balanceIncremented
             ? newNodesTotalBalance - localNodesTotalBalance
             : localNodesTotalBalance - newNodesTotalBalance;
-        require(diff <= localNodesTotalBalance / 1000, "Difference greater than 0.1%");
-
+        if (diff > localNodesTotalBalance / 1000)
+            revert UpdateTooBig(
+                localNodesTotalBalance,
+                newNodesTotalBalance,
+                diff,
+                localNodesTotalBalance / 1000
+            );
         // If the balance didn't increase there's no reward to get fees
         if (balanceIncremented) {
             uint assetsAsFee = (diff * rewardsFee) / 10000;
@@ -213,10 +241,16 @@ contract Staking is
     {
         uint32 nodesLength = uint32(_nodes.length);
         uint requiredBalance = nodesLength * 32 ether;
-        require(
-            stakingBalance + _requestPoolAmount + _requestWithdrawalAmount >= requiredBalance,
-            "Not enough balance"
-        );
+        if (
+            stakingBalance + _requestPoolAmount + _requestWithdrawalAmount <
+            requiredBalance
+        )
+            revert NotEnoughETHtoStake(
+                stakingBalance,
+                _requestPoolAmount,
+                _requestWithdrawalAmount,
+                requiredBalance
+            );
 
         if (_requestPoolAmount > 0)
             LiquidUnstakePool(liquidUnstakePool).getEthForValidator(_requestPoolAmount);
@@ -320,11 +354,10 @@ contract Staking is
 
             if (sharesFromPool > 0) {
                 assetsToPool = previewMint(sharesFromPool);
-                require(
+                assert(
                     LiquidUnstakePool(liquidUnstakePool).swapETHFormpETH{
                         value: assetsToPool
-                    }(_receiver) == sharesFromPool,
-                    "Pool _shares transfer error"
+                    }(_receiver) == sharesFromPool
                 );
             }
         }
