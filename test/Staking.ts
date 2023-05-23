@@ -179,7 +179,7 @@ describe("Staking", () => {
         ACTIVATOR_ROLE,
         liquidUnstakePool,
       } = await loadFixture(deployTest));
-      expect(await staking.nodesTotalBalance()).to.eq(toEthers(0));
+      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(toEthers(0));
       await expect(
         staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
       ).to.be.revertedWithCustomError(staking, "NotEnoughETHtoStake");
@@ -196,7 +196,7 @@ describe("Staking", () => {
     it("Stake 32 ETH", async () => {
       await staking.depositETH(owner.address, { value: toEthers(32) });
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0);
-      expect(await staking.nodesTotalBalance()).to.eq(toEthers(32));
+      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(toEthers(32));
       expect(await staking.totalNodesActivated()).to.eq(1);
     });
 
@@ -265,7 +265,7 @@ describe("Staking", () => {
         [...Array(newNodes).keys()].map((_) => getNextValidator()),
         0, 0
       );
-      expect(await staking.nodesTotalBalance()).to.eq(nodesBalance);
+      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(nodesBalance);
       await expect(
         staking.updateNodesBalance(newNodesBalance)
       ).to.be.revertedWith(
@@ -282,7 +282,7 @@ describe("Staking", () => {
     it("Update nodes balance to same amount", async () => {
       expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1));
       await staking.connect(updater).updateNodesBalance(nodesBalance);
-      expect(await staking.nodesTotalBalance()).to.eq(nodesBalance);
+      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(nodesBalance);
       expect(await staking.totalAssets()).to.eq(depositValue);
       expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1));
     });
@@ -301,22 +301,22 @@ describe("Staking", () => {
       const expectedFee = onePercent.mul(stakingFee).div(10000);
       await staking.connect(updater).updateNodesBalance(newNodesBalance);
       expect(await staking.balanceOf(treasury.address)).to.eq(expectedFee);
-      expect(await staking.nodesTotalBalance()).to.eq(newNodesBalance);
+      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(newNodesBalance);
       expect(await staking.totalAssets()).to.eq(depositValue.add(onePercent));
     });
 
     it("Nodes balance grows by estimatedRewardsPerSecond as expected", async () => {
-      const [stakingBalance, nodesTotalBalance, estimatedRewardsPerSecond] =
+      const [stakingBalance, nodesAndWithdrawalTotalBalance, estimatedRewardsPerSecond] =
         await Promise.all([
           staking.stakingBalance(),
-          staking.nodesTotalBalance(),
+          staking.nodesAndWithdrawalTotalBalance(),
           staking.estimatedRewardsPerSecond(),
         ]);
       let increaseTime = 1;
       await time.increase(increaseTime);
       expect(await staking.totalAssets()).to.eq(
         stakingBalance
-          .add(nodesTotalBalance)
+          .add(nodesAndWithdrawalTotalBalance)
           .add(estimatedRewardsPerSecond.mul(increaseTime))
       );
       const oneHour = 86400;
@@ -324,7 +324,7 @@ describe("Staking", () => {
       await time.increase(oneHour);
       expect(await staking.totalAssets()).to.eq(
         stakingBalance
-          .add(nodesTotalBalance)
+          .add(nodesAndWithdrawalTotalBalance)
           .add(estimatedRewardsPerSecond.mul(increaseTime))
       );
     });

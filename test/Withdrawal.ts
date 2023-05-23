@@ -104,31 +104,33 @@ describe("Withdrawal", function () {
         unlockEpoch
       );
       // Almost equal for rounded values
-      expect((await staking.convertToAssets(toEthers(1))).toString().substring(1, 8)).to.eq(mpETHPrice.toString().substring(1, 8))
+      expect((await staking.convertToAssets(toEthers(1))).toString().substring(0, 8)).to.eq(mpETHPrice.toString().substring(0, 8))
     });
 
     it("Complete withdraw must revert before unlock time", async () => {
-      await expect(withdrawal.connect(user).completeWithdraw()).to.be.revertedWithCustomError(withdrawal,
+      await expect(staking.connect(user).completeWithdraw()).to.be.revertedWithCustomError(withdrawal,
         "EpochNotReached"
       );
     });
 
     it("Complete withdraw must revert with insufficient balance", async () => {
       await time.increase(7 * 24 * 60 * 60);
-      await expect(withdrawal.connect(user).completeWithdraw()).to.be.revertedWith(
+      await expect(staking.connect(user).completeWithdraw()).to.be.revertedWith(
         "Address: insufficient balance"
       );
     });
 
     it("Complete withdraw", async () => {
+      const mpETHPrice = await staking.convertToAssets(toEthers(1));
       await owner.sendTransaction({
         to: withdrawal.address,
         value: (await withdrawal.pendingWithdraws(user.address)).amount,
       });
-      await withdrawal.connect(user).completeWithdraw();
+      await staking.connect(user).completeWithdraw();
       expect((await withdrawal.pendingWithdraws(user.address)).amount).to.eq(0);
       expect((await withdrawal.pendingWithdraws(user.address)).unlockEpoch).to.eq(0);
       expect(await withdrawal.totalPendingWithdraw()).to.eq(0);
+      expect((await staking.convertToAssets(toEthers(1))).toString().substring(0, 8)).to.eq(mpETHPrice.toString().substring(0, 8))
     });
   });
 
