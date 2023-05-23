@@ -34,7 +34,7 @@ contract Staking is
     address public treasury;
     address payable public liquidUnstakePool;
     IDeposit public depositContract;
-    uint public nodesTotalBalance;
+    uint public nodesAndWithdrawalTotalBalance;
     uint public stakingBalance;
     uint public nodesBalanceUnlockTime;
     uint64 public constant UPDATE_BALANCE_TIMELOCK = 4 hours;
@@ -127,13 +127,13 @@ contract Staking is
         if (rewardsSinceUpdate >= 0) {
             assets =
                 stakingBalance +
-                nodesTotalBalance +
+                nodesAndWithdrawalTotalBalance +
                 uint(rewardsSinceUpdate) -
                 Withdrawal(withdrawal).totalPendingWithdraw();
         } else {
             assets =
                 stakingBalance +
-                nodesTotalBalance -
+                nodesAndWithdrawalTotalBalance -
                 uint(-rewardsSinceUpdate) -
                 Withdrawal(withdrawal).totalPendingWithdraw();
         }
@@ -196,22 +196,22 @@ contract Staking is
                 localNodesBalanceUnlockTime,
                 block.timestamp
             );
-        uint localNodesTotalBalance = nodesTotalBalance;
-        uint newNodesTotalBalance = _newNodesBalance +
+        uint localNodesAndWithdrawalTotalBalance = nodesAndWithdrawalTotalBalance;
+        uint newNodesAndWithdrawalTotalBalance = _newNodesBalance +
             Withdrawal(withdrawal).ethRemaining();
 
-        bool balanceIncremented = newNodesTotalBalance > localNodesTotalBalance;
+        bool balanceIncremented = newNodesAndWithdrawalTotalBalance > localNodesAndWithdrawalTotalBalance;
 
         // Check balance difference
         uint diff = balanceIncremented
-            ? newNodesTotalBalance - localNodesTotalBalance
-            : localNodesTotalBalance - newNodesTotalBalance;
-        if (diff > localNodesTotalBalance / 1000)
+            ? newNodesAndWithdrawalTotalBalance - localNodesAndWithdrawalTotalBalance
+            : localNodesAndWithdrawalTotalBalance - newNodesAndWithdrawalTotalBalance;
+        if (diff > localNodesAndWithdrawalTotalBalance / 1000)
             revert UpdateTooBig(
-                localNodesTotalBalance,
-                newNodesTotalBalance,
+                localNodesAndWithdrawalTotalBalance,
+                newNodesAndWithdrawalTotalBalance,
                 diff,
-                localNodesTotalBalance / 1000
+                localNodesAndWithdrawalTotalBalance / 1000
             );
         // If the balance didn't increase there's no reward to get fees
         if (balanceIncremented) {
@@ -227,8 +227,8 @@ contract Staking is
             (balanceIncremented ? int(diff) : -int(diff)) / 
             int(newNodesBalanceUnlockTime - localNodesBalanceUnlockTime);
         nodesBalanceUnlockTime = newNodesBalanceUnlockTime;
-        nodesTotalBalance = newNodesTotalBalance;
-        emit UpdateNodesBalance(newNodesTotalBalance);
+        nodesAndWithdrawalTotalBalance = newNodesAndWithdrawalTotalBalance;
+        emit UpdateNodesBalance(newNodesAndWithdrawalTotalBalance);
     }
 
     /// @notice Stake ETH in contract to validators
@@ -271,9 +271,9 @@ contract Staking is
         }
 
         uint requiredBalanceFromStaking = requiredBalance - _requestWithdrawalAmount;
-        // Amount from Withdrawal isn't included as this amount was never substracted from nodesTotalBalance and never added to stakingBalance
+        // Amount from Withdrawal isn't included as this amount was never substracted from nodesAndWithdrawalTotalBalance and never added to stakingBalance
         stakingBalance -= requiredBalanceFromStaking;
-        nodesTotalBalance += requiredBalanceFromStaking;
+        nodesAndWithdrawalTotalBalance += requiredBalanceFromStaking;
         totalNodesActivated = _totalNodesActivated;
     }
 
@@ -301,6 +301,12 @@ contract Staking is
         uint256 _shares = previewDeposit(msg.value);
         _deposit(msg.sender, _receiver, 0, _shares);
         return _shares;
+    }
+
+    function completeWithdraw() external {
+        (uint256 amount, ) = Withdrawal(withdrawal).pendingWithdraws(msg.sender);
+        nodesAndWithdrawalTotalBalance -= amount;
+        Withdrawal(withdrawal).completeWithdraw(msg.sender);
     }
 
     /// @notice Confirm ETH or WETH deposit

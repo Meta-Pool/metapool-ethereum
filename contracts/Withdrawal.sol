@@ -64,16 +64,17 @@ contract Withdrawal is OwnableUpgradeable {
         emit RequestWithdraw(_user, _amountOut, unlockEpoch);
     }
 
-    /// @notice Process pending withdrawal if there's enough ETH
-    function completeWithdraw() external {
-        withdrawRequest memory _withdrawR = pendingWithdraws[msg.sender];
+    // TODO: Add 48hs check after current epoch
+    /// @notice Process pending withdrawal if there's enough ETH for the given user
+    function completeWithdraw(address _user) external onlyStaking {
+        withdrawRequest memory _withdrawR = pendingWithdraws[_user];
         if (getEpoch() < _withdrawR.unlockEpoch)
             revert EpochNotReached(getEpoch(), _withdrawR.unlockEpoch);
-        if (_withdrawR.amount == 0) revert UserDontHavePendingWithdraw(msg.sender);
+        if (_withdrawR.amount == 0) revert UserDontHavePendingWithdraw(_user);
         totalPendingWithdraw -= _withdrawR.amount;
-        delete pendingWithdraws[msg.sender];
-        payable(msg.sender).sendValue(_withdrawR.amount);
-        emit CompleteWithdraw(msg.sender, _withdrawR.amount, _withdrawR.unlockEpoch);
+        delete pendingWithdraws[_user];
+        payable(_user).sendValue(_withdrawR.amount);
+        emit CompleteWithdraw(_user, _withdrawR.amount, _withdrawR.unlockEpoch);
     }
 
     /// @notice Send ETH _amount to Staking
