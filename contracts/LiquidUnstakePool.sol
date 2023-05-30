@@ -54,6 +54,7 @@ contract LiquidUnstakePool is
     error NotAuthorized(address _caller, address _authorized);
     error SwapMinOut(uint256 _minOut, uint256 _amountOut);
     error RequestedETHReachMinProportion(uint256 _ethRequested, uint256 _availableETH);
+    error SharesTooLow();
 
     modifier onlyStaking() {
         if (msg.sender != STAKING) revert NotAuthorized(msg.sender, STAKING);
@@ -175,10 +176,9 @@ contract LiquidUnstakePool is
         address _receiver,
         address _owner
     ) public virtual override nonReentrant returns (uint ETHToSend) {
-        if (msg.sender != _owner) {
-            _spendAllowance(_owner, msg.sender, _shares);
-        }
+        if (msg.sender != _owner) _spendAllowance(_owner, msg.sender, _shares);
         uint poolPercentage = (_shares * 1 ether) / totalSupply();
+        if (poolPercentage == 0) revert SharesTooLow();
         ETHToSend = (poolPercentage * ethBalance) / 1 ether;
         uint mpETHToSend = (poolPercentage *
             Staking(STAKING).balanceOf(address(this))) / 1 ether;
