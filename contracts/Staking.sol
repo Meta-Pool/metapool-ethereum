@@ -95,12 +95,14 @@ contract Staking is
     }
 
     function initialize(
-        IDeposit _depositContract,
+        address _depositContract,
         IERC20MetadataUpgradeable _weth,
         address _treasury,
         address _updater,
         address _activator
     ) external initializer {
+        if (_treasury == address(0)) revert ZeroAddress("treasury");
+        if (_depositContract == address(0)) revert ZeroAddress("depositContract");
         __ERC4626_init(IERC20Upgradeable(_weth));
         __ERC20_init("MetaPoolETH", "mpETH");
         __AccessControl_init();
@@ -117,7 +119,7 @@ contract Staking is
         _grantRole(ACTIVATOR_ROLE, _activator);
         updateRewardsFee(500);
         treasury = _treasury;
-        depositContract = _depositContract;
+        depositContract = IDeposit(_depositContract);
         nodesBalanceUnlockTime = uint64(block.timestamp);
     }
 
