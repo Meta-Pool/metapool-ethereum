@@ -88,6 +88,12 @@ contract Staking is
         _;
     }
 
+    modifier onlyOperational() {
+        if (withdrawal == address(0)) revert ZeroAddress("withdrawal");
+        if (liquidUnstakePool == address(0)) revert ZeroAddress("liquidUnstakePool");
+        _;
+    }
+
     function initialize(
         IDeposit _depositContract,
         IERC20MetadataUpgradeable _weth,
@@ -163,6 +169,7 @@ contract Staking is
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
+        if (_withdrawal == address(0)) revert ZeroAddress("withdrawal");
         withdrawal = _withdrawal;
     }
 
@@ -189,7 +196,7 @@ contract Staking is
     /// @dev Updater function
     /// @notice Updates nodes total balance
     /// @param _newNodesBalance Total current ETH balance from validators
-    function updateNodesBalance(uint _newNodesBalance) external onlyRole(UPDATER_ROLE) {
+    function updateNodesBalance(uint _newNodesBalance) external onlyOperational onlyRole(UPDATER_ROLE) {
         uint localNodesBalanceUnlockTime = nodesBalanceUnlockTime;
         if (block.timestamp < localNodesBalanceUnlockTime)
             revert UpdateBalanceTimestampNotReached(
@@ -237,7 +244,7 @@ contract Staking is
     /// @param _requestWithdrawalAmount ETH amount to take from Withdrawal
     function pushToBeacon(Node[] memory _nodes, uint _requestPoolAmount, uint _requestWithdrawalAmount)
         external
-        onlyRole(ACTIVATOR_ROLE)
+        onlyOperational onlyRole(ACTIVATOR_ROLE)
     {
         uint32 nodesLength = uint32(_nodes.length);
         uint requiredBalance = nodesLength * 32 ether;
@@ -316,7 +323,7 @@ contract Staking is
         address _receiver,
         uint256 _assets,
         uint256 _shares
-    ) internal override checkWhitelisting() {
+    ) internal override onlyOperational checkWhitelisting {
         _assets = _getAssetsDeposit(_assets);
         (uint sharesFromPool, uint assetsToPool) = _getmpETHFromPool(_shares, _receiver);
         _shares -= sharesFromPool;
@@ -376,7 +383,7 @@ contract Staking is
         address owner,
         uint256 assets,
         uint256 shares
-    ) internal override {
+    ) internal override onlyOperational {
         if (caller != owner) {
             _spendAllowance(owner, caller, shares);
         }
