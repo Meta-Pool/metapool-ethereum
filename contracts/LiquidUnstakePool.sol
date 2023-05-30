@@ -242,10 +242,8 @@ contract LiquidUnstakePool is
                 totalAssets()) / 10000;
             revert RequestedETHReachMinProportion(_amount, availableETH);
         }
-        uint previousTotalAssets = totalAssets();
         ethBalance -= _amount;
         Staking(STAKING).depositETH{value: _amount}(address(this));
-        assert(previousTotalAssets == totalAssets());
         emit SendETHForValidator(block.timestamp, _amount);
     }
 
