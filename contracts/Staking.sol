@@ -192,10 +192,9 @@ contract Staking is
         rewardsFee = _rewardsFee;
     }
 
-    /// @notice Update Withdrawal contract address
-    /// @dev Updater function
     /// @notice Updates nodes total balance
     /// @param _newNodesBalance Total current ETH balance from validators
+    /// @dev Update the amount of ethers in the protocol, the estimated rewards per second and, if there are rewards, mint new mpETH to treasury
     function updateNodesBalance(uint _newNodesBalance) external onlyOperational onlyRole(UPDATER_ROLE) {
         uint localNodesBalanceUnlockTime = nodesBalanceUnlockTime;
         if (block.timestamp < localNodesBalanceUnlockTime)
