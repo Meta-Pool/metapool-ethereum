@@ -183,9 +183,9 @@ contract LiquidUnstakePool is
         uint mpETHToSend = (poolPercentage *
             Staking(STAKING).balanceOf(address(this))) / 1 ether;
         _burn(msg.sender, _shares);
-        payable(_receiver).sendValue(ETHToSend);
-        IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
         ethBalance -= ETHToSend;
+        IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
+        payable(_receiver).sendValue(ETHToSend);
         emit RemoveLiquidity(msg.sender, _shares, ETHToSend, mpETHToSend);
     }
 
