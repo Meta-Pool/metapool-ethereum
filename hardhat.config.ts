@@ -7,7 +7,7 @@ require("dotenv").config();
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.17",
+    version: "0.8.4",
     settings: {
       optimizer: {
         enabled: true,
