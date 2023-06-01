@@ -153,14 +153,16 @@ contract Staking is
     function addToWhitelist(
         address[] calldata addresses
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        for (uint i = 0; i < addresses.length; i++)
+        uint length = addresses.length;
+        for (uint i = 0; i != length; ++i)
             whitelistedAccounts[addresses[i]] = true;
     }
 
     function removeFromWhitelist(
         address[] calldata addresses
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        for (uint i = 0; i < addresses.length; i++)
+        uint length = addresses.length;
+        for (uint i = 0; i != length; ++i)
             whitelistedAccounts[addresses[i]] = false;
     }
 
@@ -266,7 +268,7 @@ contract Staking is
 
         uint32 _totalNodesActivated = totalNodesActivated;
 
-        for (uint i = 0; i < nodesLength; i++) {
+        for (uint i = 0; i != nodesLength; ++i) {
             depositContract.deposit{value: 32 ether}(
                 _nodes[i].pubkey,
                 _nodes[i].withdrawCredentials,
