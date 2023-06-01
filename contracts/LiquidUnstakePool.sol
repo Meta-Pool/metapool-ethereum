@@ -61,9 +61,8 @@ contract LiquidUnstakePool is
         _;
     }
 
-    modifier validDeposit(uint _amount) {
+    function _revertIfInvalidDeposit(uint _amount) private pure {
         if (_amount < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _amount);
-        _;
     }
 
     function initialize(
@@ -114,7 +113,7 @@ contract LiquidUnstakePool is
     function deposit(
         uint _assets,
         address _receiver
-    ) public override validDeposit(_assets) returns (uint) {
+    ) public override returns (uint) {
         uint _shares = previewDeposit(_assets);
         _deposit(msg.sender, _receiver, _assets, _shares);
         return _shares;
@@ -124,7 +123,7 @@ contract LiquidUnstakePool is
     /// @dev Equivalent to deposit function but for native token. Sends assets 0 to _deposit to indicate that the assets amount will be msg.value
     function depositETH(
         address _receiver
-    ) external payable validDeposit(msg.value) returns (uint) {
+    ) external payable returns (uint) {
         uint shares = previewDeposit(msg.value);
         _deposit(msg.sender, _receiver, 0, shares);
         return shares;
@@ -139,6 +138,7 @@ contract LiquidUnstakePool is
         uint _shares
     ) internal virtual override nonReentrant {
         _assets = _getAssetsDeposit(_assets);
+        _revertIfInvalidDeposit(_assets);
         _mint(_receiver, _shares);
         ethBalance += _assets;
         emit AddLiquidity(_caller, _receiver, _assets, _shares);

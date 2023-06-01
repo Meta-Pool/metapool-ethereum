@@ -78,9 +78,8 @@ contract Staking is
     );
     error ZeroAddress(string _address);
 
-    modifier validDeposit(uint _amount) {
+    function _revertIfInvalidDeposit(uint _amount) private pure {
         if (_amount < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _amount);
-        _;
     }
 
     modifier checkWhitelisting() {
@@ -290,7 +289,6 @@ contract Staking is
     function deposit(uint256 _assets, address _receiver)
         public
         override
-        validDeposit(_assets)
         returns (uint256)
     {
         uint256 _shares = previewDeposit(_assets);
@@ -303,7 +301,6 @@ contract Staking is
     function depositETH(address _receiver)
         public
         payable
-        validDeposit(msg.value)
         returns (uint256)
     {
         uint256 _shares = previewDeposit(msg.value);
@@ -326,6 +323,7 @@ contract Staking is
         uint256 _shares
     ) internal override onlyOperational checkWhitelisting {
         _assets = _getAssetsDeposit(_assets);
+        _revertIfInvalidDeposit(_assets);
         (uint sharesFromPool, uint assetsToPool) = _getmpETHFromPool(_shares, _receiver);
         _shares -= sharesFromPool;
         _assets -= assetsToPool;
