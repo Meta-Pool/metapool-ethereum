@@ -8,8 +8,8 @@ import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
 import "./Staking.sol";
 
 struct withdrawRequest {
-    uint amount;
-    uint unlockEpoch;
+    uint256 amount;
+    uint256 unlockEpoch;
 }
 
 /// @title Manage withdrawals from validators to users
@@ -21,12 +21,12 @@ contract Withdrawal is OwnableUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     address payable public mpETH;
-    uint public totalPendingWithdraw;
-    uint public startTimestamp;
+    uint256 public totalPendingWithdraw;
+    uint256 public startTimestamp;
     mapping(address => withdrawRequest) public pendingWithdraws;
 
-    event RequestWithdraw(address indexed user, uint amount, uint unlockEpoch);
-    event CompleteWithdraw(address indexed user, uint amount, uint unlockEpoch);
+    event RequestWithdraw(address indexed user, uint256 amount, uint256 unlockEpoch);
+    event CompleteWithdraw(address indexed user, uint256 amount, uint256 unlockEpoch);
 
     error NotAuthorized(address _caller, address _authorized);
     error EpochNotReached(uint256 _currentEpoch, uint256 _unlockEpoch);
@@ -47,7 +47,7 @@ contract Withdrawal is OwnableUpgradeable {
     }
 
     /// @return epoch Returns the current epoch
-    function getEpoch() public view returns (uint epoch) {
+    function getEpoch() public view returns (uint256 epoch) {
         return (block.timestamp - startTimestamp) / 7 days;
     }
 
@@ -56,8 +56,8 @@ contract Withdrawal is OwnableUpgradeable {
     /// Shares used for this request should be already bruned in the calling function (Staking._withdraw)
     /// @param _amountOut ETH amount to withdraw
     /// @param _user Owner of the withdrawal
-    function requestWithdraw(uint _amountOut, address _user) external onlyStaking {
-        uint unlockEpoch = getEpoch() + 1;
+    function requestWithdraw(uint256 _amountOut, address _user) external onlyStaking {
+        uint256 unlockEpoch = getEpoch() + 1;
         pendingWithdraws[_user].amount += _amountOut;
         pendingWithdraws[_user].unlockEpoch = unlockEpoch;
         totalPendingWithdraw += _amountOut;
@@ -79,13 +79,13 @@ contract Withdrawal is OwnableUpgradeable {
 
     /// @notice Send ETH _amount to Staking
     /// @dev As the validators are always fully disassembled, the contract can have more ETH than the needed for withdrawals. So the Staking can take this ETH and send it again to validators. This shouldn't mint new mpETH
-    function getEthForValidator(uint _amount) external onlyStaking {
+    function getEthForValidator(uint256 _amount) external onlyStaking {
         if (_amount > ethRemaining()) revert NotEnoughETHtoStake(_amount, ethRemaining());
         mpETH.sendValue(_amount);
     }
 
     /// @notice Returns the ETH not assigned to any withdrawal
-    function ethRemaining() public view returns (uint) {
+    function ethRemaining() public view returns (uint256) {
         return
             (address(this).balance > totalPendingWithdraw)
                 ? address(this).balance - totalPendingWithdraw

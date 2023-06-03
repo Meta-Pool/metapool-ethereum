@@ -22,9 +22,9 @@ contract LiquidUnstakePool is
 
     address public treasury;
     address payable public STAKING;
-    uint public ethBalance;
-    uint public targetLiquidity;
-    uint public minETHPercentage;
+    uint256 public ethBalance;
+    uint256 public targetLiquidity;
+    uint256 public minETHPercentage;
     uint64 public constant MIN_DEPOSIT = 0.01 ether;
     uint16 public constant MIN_FEE = 30;
     uint16 public constant MAX_FEE = 500;
@@ -32,23 +32,23 @@ contract LiquidUnstakePool is
     event AddLiquidity(
         address indexed user,
         address indexed receiver,
-        uint amount,
-        uint shares
+        uint256 amount,
+        uint256 shares
     );
     event RemoveLiquidity(
         address indexed user,
-        uint shares,
-        uint eth,
-        uint mpETH
+        uint256 shares,
+        uint256 eth,
+        uint256 mpETH
     );
     event Swap(
         address indexed user,
-        uint amountIn,
-        uint amountOut,
-        uint fees,
-        uint treasuryFees
+        uint256 amountIn,
+        uint256 amountOut,
+        uint256 fees,
+        uint256 treasuryFees
     );
-    event SendETHForValidator(uint timestamp, uint amount);
+    event SendETHForValidator(uint256 timestamp, uint256 amount);
 
     error DepositTooLow(uint256 _minAmount, uint256 _amountSent);
     error NotAuthorized(address _caller, address _authorized);
@@ -61,7 +61,7 @@ contract LiquidUnstakePool is
         _;
     }
 
-    function _revertIfInvalidDeposit(uint _amount) private pure {
+    function _revertIfInvalidDeposit(uint256 _amount) private pure {
         if (_amount < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _amount);
     }
 
@@ -89,18 +89,18 @@ contract LiquidUnstakePool is
 
     /// @notice Update targetLiquidity
     /// @dev Reserves value from which the swap mpETHForETH will apply fees
-    function updateTargetLiquidity(uint _targetLiquidity) public onlyOwner {
+    function updateTargetLiquidity(uint256 _targetLiquidity) public onlyOwner {
         targetLiquidity = _targetLiquidity;
     }
 
     /// @notice Update minETHPercentage
     /// @dev Min ETH reserves percentage compared to mpETH reserves to allow Staking to request ETH for validators
-    function updateMinETHPercentage(uint _minETHPercentage) public onlyOwner {
+    function updateMinETHPercentage(uint256 _minETHPercentage) public onlyOwner {
         minETHPercentage = _minETHPercentage;
     }
 
     /// @notice Return the amount of ETH and mpETH equivalent to ETH in the pool
-    function totalAssets() public view override returns (uint) {
+    function totalAssets() public view override returns (uint256) {
         return
             ethBalance +
             Staking(STAKING).convertToAssets(
@@ -111,10 +111,10 @@ contract LiquidUnstakePool is
     /// @notice Add liquidity with WETH
     /// @dev Same function as in ERC4626 but removes maxDeposit check and add validDeposit modifier who checks for minDeposit
     function deposit(
-        uint _assets,
+        uint256 _assets,
         address _receiver
-    ) public override returns (uint) {
-        uint _shares = previewDeposit(_assets);
+    ) public override returns (uint256) {
+        uint256 _shares = previewDeposit(_assets);
         _deposit(msg.sender, _receiver, _assets, _shares);
         return _shares;
     }
@@ -123,8 +123,8 @@ contract LiquidUnstakePool is
     /// @dev Equivalent to deposit function but for native token. Sends assets 0 to _deposit to indicate that the assets amount will be msg.value
     function depositETH(
         address _receiver
-    ) external payable returns (uint) {
-        uint shares = previewDeposit(msg.value);
+    ) external payable returns (uint256) {
+        uint256 shares = previewDeposit(msg.value);
         _deposit(msg.sender, _receiver, 0, shares);
         return shares;
     }
@@ -134,8 +134,8 @@ contract LiquidUnstakePool is
     function _deposit(
         address _caller,
         address _receiver,
-        uint _assets,
-        uint _shares
+        uint256 _assets,
+        uint256 _shares
     ) internal virtual override nonReentrant {
         _assets = _getAssetsDeposit(_assets);
         _revertIfInvalidDeposit(_assets);
@@ -146,7 +146,7 @@ contract LiquidUnstakePool is
 
     /// @dev Convert WETH to ETH if the deposit is in WETH. Receive _assets as 0 if deposit is in ETH
     /// @return Amount of assets received
-    function _getAssetsDeposit(uint _assets) private returns(uint){
+    function _getAssetsDeposit(uint256 _assets) private returns(uint256){
         if (_assets == 0) { // ETH deposit
             _assets = msg.value;
         } else { // WETH deposit. Get WETH and convert to ETH
@@ -165,22 +165,22 @@ contract LiquidUnstakePool is
         uint256,
         address,
         address
-    ) public pure override returns (uint) {
+    ) public pure override returns (uint256) {
         revert("Use redeem");
     }
 
     /// @dev Overrided to return ETH and mpETH for shares
     /// @return ETHToSend ETH sent to user. Don't includes mpETH sent
     function redeem(
-        uint _shares,
+        uint256 _shares,
         address _receiver,
         address _owner
-    ) public virtual override nonReentrant returns (uint ETHToSend) {
+    ) public virtual override nonReentrant returns (uint256 ETHToSend) {
         if (msg.sender != _owner) _spendAllowance(_owner, msg.sender, _shares);
-        uint poolPercentage = (_shares * 1 ether) / totalSupply();
+        uint256 poolPercentage = (_shares * 1 ether) / totalSupply();
         if (poolPercentage == 0) revert SharesTooLow();
         ETHToSend = (poolPercentage * ethBalance) / 1 ether;
-        uint mpETHToSend = (poolPercentage *
+        uint256 mpETHToSend = (poolPercentage *
             Staking(STAKING).balanceOf(address(this))) / 1 ether;
         _burn(msg.sender, _shares);
         ethBalance -= ETHToSend;
@@ -192,13 +192,13 @@ contract LiquidUnstakePool is
     /// @notice Swap mpETH for ETH
     /// @dev Send ETH to user and take some mpETH as fee for treasury and pool (liquidity providers)
     function swapmpETHforETH(
-        uint _amount,
-        uint _minOut
-    ) external nonReentrant returns (uint) {
+        uint256 _amount,
+        uint256 _minOut
+    ) external nonReentrant returns (uint256) {
         address payable staking = STAKING;
-        (uint amountOut, uint feeAmount) = getAmountOut(_amount);
+        (uint256 amountOut, uint256 feeAmount) = getAmountOut(_amount);
         if (amountOut < _minOut) revert SwapMinOut(_minOut, amountOut);
-        uint feeToTreasury = (feeAmount * 2500) / 10000;
+        uint256 feeToTreasury = (feeAmount * 2500) / 10000;
         ethBalance -= amountOut;
         IERC20Upgradeable(staking).safeTransferFrom(
             msg.sender,
@@ -216,15 +216,15 @@ contract LiquidUnstakePool is
     /// @return amountOut ETH amount out from swap
     /// @return feeAmount Total mpETH fee from _amountIn
     function getAmountOut(
-        uint _amountIn
-    ) public view returns (uint amountOut, uint feeAmount) {
+        uint256 _amountIn
+    ) public view returns (uint256 amountOut, uint256 feeAmount) {
         address payable staking = STAKING;
         uint16 feeRange = MAX_FEE - MIN_FEE;
         amountOut = Staking(staking).convertToAssets(_amountIn);
-        uint reservesAfterSwap = ethBalance.sub(amountOut, "Not enough ETH");
-        uint finalFee = MIN_FEE;
+        uint256 reservesAfterSwap = ethBalance.sub(amountOut, "Not enough ETH");
+        uint256 finalFee = MIN_FEE;
         if (reservesAfterSwap < targetLiquidity) {
-            uint proportionalBp = (feeRange * reservesAfterSwap) /
+            uint256 proportionalBp = (feeRange * reservesAfterSwap) /
                 targetLiquidity;
             finalFee = MAX_FEE - proportionalBp;
         }
@@ -234,11 +234,11 @@ contract LiquidUnstakePool is
 
     /// @notice Deposit ETH into Staking
     /// @dev Called from Staking to get ETH for validators
-    function getEthForValidator(uint _amount) external nonReentrant onlyStaking {
-        uint currentETHPercentage = (ethBalance * 10000) / totalAssets();
-        uint newEthPercentage = ((ethBalance - _amount) * 10000) / totalAssets();
+    function getEthForValidator(uint256 _amount) external nonReentrant onlyStaking {
+        uint256 currentETHPercentage = (ethBalance * 10000) / totalAssets();
+        uint256 newEthPercentage = ((ethBalance - _amount) * 10000) / totalAssets();
         if (newEthPercentage < minETHPercentage) {
-            uint availableETH = ((currentETHPercentage - minETHPercentage) *
+            uint256 availableETH = ((currentETHPercentage - minETHPercentage) *
                 totalAssets()) / 10000;
             revert RequestedETHReachMinProportion(_amount, availableETH);
         }
@@ -250,9 +250,9 @@ contract LiquidUnstakePool is
     /// @notice Staking swap ETH for mpETH
     function swapETHFormpETH(
         address _to
-    ) external payable nonReentrant onlyStaking returns (uint) {
+    ) external payable nonReentrant onlyStaking returns (uint256) {
         address payable staking = STAKING;
-        uint mpETHToSend = Staking(staking).previewDeposit(msg.value);
+        uint256 mpETHToSend = Staking(staking).previewDeposit(msg.value);
         IERC20Upgradeable(staking).safeTransfer(_to, mpETHToSend);
         ethBalance += msg.value;
         return mpETHToSend;
