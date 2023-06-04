@@ -47,6 +47,7 @@ contract Staking is
     address payable public withdrawal;
     mapping(address => bool) public whitelistedAccounts;
     bool public whitelistEnabled;
+    uint16 public constant MAX_REWARDS_FEE = 2000;
 
     event Mint(
         address indexed sender,
@@ -77,6 +78,7 @@ contract Staking is
         uint256 _requiredBalance
     );
     error ZeroAddress(string _address);
+    error RewardFeeTooBig(uint16 _sentFee, uint16 _maxFee);
 
     function _revertIfInvalidDeposit(uint256 _amount) private pure {
         if (_amount < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _amount);
@@ -192,6 +194,7 @@ contract Staking is
         public
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
+        if (_rewardsFee > MAX_REWARDS_FEE) revert RewardFeeTooBig(_rewardsFee, MAX_REWARDS_FEE);
         rewardsFee = _rewardsFee;
     }
 
