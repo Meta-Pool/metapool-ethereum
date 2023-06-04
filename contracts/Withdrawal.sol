@@ -46,9 +46,14 @@ contract Withdrawal is OwnableUpgradeable {
         mpETH = _mpETH;
     }
 
-    /// @return epoch Returns the current epoch
+    /// @return epoch Current epoch
     function getEpoch() public view returns (uint256 epoch) {
         return (block.timestamp - startTimestamp) / 7 days;
+    }
+
+    /// @return Timestamp until next epoch
+    function getEpochTimeLeft() external view returns (uint256) {
+        return startTimestamp + (getEpoch() + 1) * 7 days - block.timestamp;
     }
 
     /// @notice Queue ETH withdrawal
