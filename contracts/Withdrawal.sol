@@ -15,12 +15,13 @@ struct withdrawRequest {
 /// @title Manage withdrawals from validators to users
 /// @notice Receive request for withdrawals from Staking and allow users to complete the withdrawals once the epoch is reached
 /// @dev As the disassemble of validators is delayed, this contract manage the pending withdraw from users to allow the to complet it once his unlockEpoch is reached and if the contract has enough ETH
-/// The epochs are of one week
+// The epochs are of one week
 contract Withdrawal is OwnableUpgradeable {
     using AddressUpgradeable for address payable;
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     address payable public mpETH;
+    // How much do we owe to delayed withdrawals
     uint256 public totalPendingWithdraw;
     uint256 public startTimestamp;
     mapping(address => withdrawRequest) public pendingWithdraws;
@@ -85,15 +86,9 @@ contract Withdrawal is OwnableUpgradeable {
     /// @notice Send ETH _amount to Staking
     /// @dev As the validators are always fully disassembled, the contract can have more ETH than the needed for withdrawals. So the Staking can take this ETH and send it again to validators. This shouldn't mint new mpETH
     function getEthForValidator(uint256 _amount) external onlyStaking {
-        if (_amount > ethRemaining()) revert NotEnoughETHtoStake(_amount, ethRemaining());
+        if (totalPendingWithdraw > address(this).balance) revert NotEnoughETHtoStake(_amount, 0);
+        uint256 ethRemaining = address(this).balance - totalPendingWithdraw;
+        if (_amount > ethRemaining) revert NotEnoughETHtoStake(_amount, ethRemaining);
         mpETH.sendValue(_amount);
-    }
-
-    /// @notice Returns the ETH not assigned to any withdrawal
-    function ethRemaining() public view returns (uint256) {
-        return
-            (address(this).balance > totalPendingWithdraw)
-                ? address(this).balance - totalPendingWithdraw
-                : 0;
     }
 }

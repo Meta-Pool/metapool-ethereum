@@ -209,8 +209,7 @@ contract Staking is
                 block.timestamp
             );
         uint256 localNodesAndWithdrawalTotalBalance = nodesAndWithdrawalTotalBalance;
-        uint256 newNodesAndWithdrawalTotalBalance = _newNodesBalance +
-            Withdrawal(withdrawal).ethRemaining();
+        uint256 newNodesAndWithdrawalTotalBalance = _newNodesBalance + withdrawal.balance - Withdrawal(withdrawal).totalPendingWithdraw();
 
         bool balanceIncremented = newNodesAndWithdrawalTotalBalance > localNodesAndWithdrawalTotalBalance;
 
