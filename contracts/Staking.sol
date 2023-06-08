@@ -8,10 +8,10 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import "./IDeposit.sol";
+import "./interfaces/IDeposit.sol";
+import "./interfaces/IWETH.sol";
 import "./LiquidUnstakePool.sol";
 import "./Withdrawal.sol";
-import "./IWETH.sol";
 
 /// @title ETH staking manager and mpETH staking token
 /// @author MetaPool
