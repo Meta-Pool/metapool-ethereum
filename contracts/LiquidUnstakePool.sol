@@ -55,6 +55,7 @@ contract LiquidUnstakePool is
     error SwapMinOut(uint256 _minOut, uint256 _amountOut);
     error RequestedETHReachMinProportion(uint256 _ethRequested, uint256 _availableETH);
     error SharesTooLow();
+    error AssetsTooLow();
 
     modifier onlyStaking() {
         if (msg.sender != STAKING) revert NotAuthorized(msg.sender, STAKING);
@@ -160,13 +161,26 @@ contract LiquidUnstakePool is
         return _assets;
     }
 
-    /// @dev Override to revert because the "asset" of the pool are really two assets, ETH and mpETH. So the function can't receive only one asset as parameter
+    /// @dev Override to return ETH and mpETH
+    /// @param _assets ETH to withdraw as ETH plus mpETH converted to ETH
     function withdraw(
-        uint256,
-        address,
-        address
-    ) public pure override returns (uint256) {
-        revert("Use redeem");
+        uint256 _assets,
+        address _receiver,
+        address _owner
+    ) public pure override returns (uint256 shares) {
+        shares = previewWithdraw(_assets);
+        if (msg.sender != _owner) _spendAllowance(_owner, msg.sender, shares);
+        uint256 poolPercentage = (_assets * 1 ether) / totalAssets();
+        if (poolPercentage == 0) revert AssetsTooLow();
+        uint256 ETHToSend = (poolPercentage * ethBalance) / 1 ether;
+        uint256 mpETHToSend = (poolPercentage *
+            Staking(STAKING).balanceOf(address(this))) / 1 ether;
+        _burn(_owner, shares);
+        ethBalance -= ETHToSend;
+        IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
+        payable(_receiver).sendValue(ETHToSend);
+        emit RemoveLiquidity(msg.sender, shares, ETHToSend, mpETHToSend);
+        emit Withdraw(msg.sender, _receiver, _owner, ETHToSend, shares);
     }
 
     /// @dev Overrided to return ETH and mpETH for shares
@@ -182,11 +196,12 @@ contract LiquidUnstakePool is
         ETHToSend = (poolPercentage * ethBalance) / 1 ether;
         uint256 mpETHToSend = (poolPercentage *
             Staking(STAKING).balanceOf(address(this))) / 1 ether;
-        _burn(msg.sender, _shares);
+        _burn(_owner, _shares);
         ethBalance -= ETHToSend;
         IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
         payable(_receiver).sendValue(ETHToSend);
-        emit RemoveLiquidity(msg.sender, _shares, ETHToSend, mpETHToSend);
+        emit RemoveLiquidity(_owner, _shares, ETHToSend, mpETHToSend);
+        emit Withdraw(msg.sender, _receiver, _owner, ETHToSend, _shares);
     }
 
     /// @notice Swap mpETH for ETH
