@@ -48,6 +48,7 @@ contract Staking is
     mapping(address => bool) public whitelistedAccounts;
     bool public whitelistEnabled;
     uint16 public constant MAX_REWARDS_FEE = 2000;
+    mapping(bytes => bool) public nodePubkeyUsed;
 
     event Mint(
         address indexed sender,
@@ -79,6 +80,7 @@ contract Staking is
     );
     error ZeroAddress(string _address);
     error RewardFeeTooBig(uint16 _sentFee, uint16 _maxFee);
+    error NodeAlreadyUsed(bytes _pubkey);
 
     function _revertIfInvalidDeposit(uint256 _amount) private pure {
         if (_amount < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _amount);
@@ -272,6 +274,8 @@ contract Staking is
         uint32 _totalNodesActivated = totalNodesActivated;
 
         for (uint256 i = 0; i != nodesLength; ++i) {
+            if (nodePubkeyUsed[_nodes[i].pubkey]) revert NodeAlreadyUsed(_nodes[i].pubkey);
+            nodePubkeyUsed[_nodes[i].pubkey] = true;
             depositContract.deposit{value: 32 ether}(
                 _nodes[i].pubkey,
                 _nodes[i].withdrawCredentials,
