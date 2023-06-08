@@ -235,13 +235,8 @@ contract LiquidUnstakePool is
     /// @notice Deposit ETH into Staking
     /// @dev Called from Staking to get ETH for validators
     function getEthForValidator(uint256 _amount) external nonReentrant onlyStaking {
-        uint256 currentETHPercentage = (ethBalance * 10000) / totalAssets();
-        uint256 newEthPercentage = ((ethBalance - _amount) * 10000) / totalAssets();
-        if (newEthPercentage < minETHPercentage) {
-            uint256 availableETH = ((currentETHPercentage - minETHPercentage) *
-                totalAssets()) / 10000;
-            revert RequestedETHReachMinProportion(_amount, availableETH);
-        }
+        uint256 availableETH = getAvailableEthForValidator();
+        if (_amount > availableETH) revert RequestedETHReachMinProportion(_amount, availableETH);
         ethBalance -= _amount;
         Staking(STAKING).depositETH{value: _amount}(address(this));
         emit SendETHForValidator(block.timestamp, _amount);
@@ -256,5 +251,10 @@ contract LiquidUnstakePool is
         IERC20Upgradeable(staking).safeTransfer(_to, mpETHToSend);
         ethBalance += msg.value;
         return mpETHToSend;
+    }
+
+    function getAvailableEthForValidator() public view returns (uint256 availableETH) {
+        uint256 currentETHPercentage = (ethBalance * 10000) / totalAssets();
+        availableETH = ((currentETHPercentage - minETHPercentage) * totalAssets()) / 10000;
     }
 }
