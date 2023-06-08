@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.18;
+pragma solidity 0.8.4;
 
 /// @title Meta Pool implementation of a ERC4626 Router ☎️
 
@@ -24,7 +24,7 @@ contract ERC4626Router is IERC4626Router {
         address _to,
         uint256 _amount,
         uint256 _minSharesOut
-    ) external returns (uint256 _sharesOut) {
+    ) external override returns (uint256 _sharesOut) {
         IERC20 asset = IERC20(_vault.asset());
         _pullToken(asset, _amount, address(this));
         asset.safeIncreaseAllowance(address(_vault), _amount);
@@ -38,7 +38,7 @@ contract ERC4626Router is IERC4626Router {
         address _to,
         uint256 _shares,
         uint256 _maxAmountIn
-    ) external returns (uint256 _amountIn) {
+    ) external override returns (uint256 _amountIn) {
         IERC20 asset = IERC20(_vault.asset());
         uint256 _assets = _vault.previewMint(_shares);
         _pullToken(asset, _assets, address(this));
@@ -53,7 +53,7 @@ contract ERC4626Router is IERC4626Router {
         address _to,
         uint256 _shares,
         uint256 _minAmountOut
-    ) external returns (uint256 _amountOut) {
+    ) external override returns (uint256 _amountOut) {
         // Using the vault as a safe IER20.
         IERC20 vault = IERC20(_vault);
         _pullToken(vault, _shares, address(this));
@@ -68,7 +68,7 @@ contract ERC4626Router is IERC4626Router {
         address _to,
         uint256 _amount,
         uint256 _maxSharesOut
-    ) external returns (uint256 _sharesOut) {
+    ) external override returns (uint256 _sharesOut) {
         // Using the vault as a safe IER20.
         IERC20 vault = IERC20(_vault);
         uint256 _shares = _vault.previewWithdraw(_amount);

@@ -167,7 +167,7 @@ contract LiquidUnstakePool is
         uint256 _assets,
         address _receiver,
         address _owner
-    ) public pure override returns (uint256 shares) {
+    ) public override returns (uint256 shares) {
         shares = previewWithdraw(_assets);
         if (msg.sender != _owner) _spendAllowance(_owner, msg.sender, shares);
         uint256 poolPercentage = (_assets * 1 ether) / totalAssets();
@@ -189,7 +189,7 @@ contract LiquidUnstakePool is
         uint256 _shares,
         address _receiver,
         address _owner
-    ) public virtual override nonReentrant returns (uint256 ETHToSend) {
+    ) public override nonReentrant returns (uint256 ETHToSend) {
         if (msg.sender != _owner) _spendAllowance(_owner, msg.sender, _shares);
         uint256 poolPercentage = (_shares * 1 ether) / totalSupply();
         if (poolPercentage == 0) revert SharesTooLow();
