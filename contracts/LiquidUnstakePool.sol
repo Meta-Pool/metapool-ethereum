@@ -35,12 +35,7 @@ contract LiquidUnstakePool is
         uint256 amount,
         uint256 shares
     );
-    event RemoveLiquidity(
-        address indexed user,
-        uint256 shares,
-        uint256 eth,
-        uint256 mpETH
-    );
+    event RemoveLiquidity(address indexed user, uint256 shares, uint256 eth, uint256 mpETH);
     event Swap(
         address indexed user,
         uint256 amountIn,
@@ -75,10 +70,7 @@ contract LiquidUnstakePool is
         __ERC20_init("MetaETHLP", "mpETH/ETH");
         __Ownable_init();
         __ReentrancyGuard_init();
-        require(
-            _weth.decimals() == 18,
-            "wNative token error, implementation for 18 decimals"
-        );
+        require(_weth.decimals() == 18, "wNative token error, implementation for 18 decimals");
         STAKING = _staking;
         treasury = _treasury;
         updateTargetLiquidity(30 ether);
@@ -104,17 +96,12 @@ contract LiquidUnstakePool is
     function totalAssets() public view override returns (uint256) {
         return
             ethBalance +
-            Staking(STAKING).convertToAssets(
-                Staking(STAKING).balanceOf(address(this))
-            );
+            Staking(STAKING).convertToAssets(Staking(STAKING).balanceOf(address(this)));
     }
 
     /// @notice Add liquidity with WETH
     /// @dev Same function as in ERC4626 but removes maxDeposit check and add validDeposit modifier who checks for minDeposit
-    function deposit(
-        uint256 _assets,
-        address _receiver
-    ) public override returns (uint256) {
+    function deposit(uint256 _assets, address _receiver) public override returns (uint256) {
         uint256 _shares = previewDeposit(_assets);
         _deposit(msg.sender, _receiver, _assets, _shares);
         return _shares;
@@ -122,9 +109,7 @@ contract LiquidUnstakePool is
 
     /// @notice Add liquidity with ETH
     /// @dev Equivalent to deposit function but for native token. Sends assets 0 to _deposit to indicate that the assets amount will be msg.value
-    function depositETH(
-        address _receiver
-    ) external payable returns (uint256) {
+    function depositETH(address _receiver) external payable returns (uint256) {
         uint256 shares = previewDeposit(msg.value);
         _deposit(msg.sender, _receiver, 0, shares);
         return shares;
@@ -147,15 +132,13 @@ contract LiquidUnstakePool is
 
     /// @dev Convert WETH to ETH if the deposit is in WETH. Receive _assets as 0 if deposit is in ETH
     /// @return Amount of assets received
-    function _getAssetsDeposit(uint256 _assets) private returns(uint256){
-        if (_assets == 0) { // ETH deposit
+    function _getAssetsDeposit(uint256 _assets) private returns (uint256) {
+        if (_assets == 0) {
+            // ETH deposit
             _assets = msg.value;
-        } else { // WETH deposit. Get WETH and convert to ETH
-            IERC20Upgradeable(asset()).safeTransferFrom(
-                msg.sender,
-                address(this),
-                _assets
-            );
+        } else {
+            // WETH deposit. Get WETH and convert to ETH
+            IERC20Upgradeable(asset()).safeTransferFrom(msg.sender, address(this), _assets);
             IWETH(asset()).withdraw(_assets);
         }
         return _assets;
@@ -173,8 +156,8 @@ contract LiquidUnstakePool is
         uint256 poolPercentage = (_assets * 1 ether) / totalAssets();
         if (poolPercentage == 0) revert AssetsTooLow();
         uint256 ETHToSend = (poolPercentage * ethBalance) / 1 ether;
-        uint256 mpETHToSend = (poolPercentage *
-            Staking(STAKING).balanceOf(address(this))) / 1 ether;
+        uint256 mpETHToSend = (poolPercentage * Staking(STAKING).balanceOf(address(this))) /
+            1 ether;
         _burn(_owner, shares);
         ethBalance -= ETHToSend;
         IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
@@ -194,8 +177,8 @@ contract LiquidUnstakePool is
         uint256 poolPercentage = (_shares * 1 ether) / totalSupply();
         if (poolPercentage == 0) revert SharesTooLow();
         ETHToSend = (poolPercentage * ethBalance) / 1 ether;
-        uint256 mpETHToSend = (poolPercentage *
-            Staking(STAKING).balanceOf(address(this))) / 1 ether;
+        uint256 mpETHToSend = (poolPercentage * Staking(STAKING).balanceOf(address(this))) /
+            1 ether;
         _burn(_owner, _shares);
         ethBalance -= ETHToSend;
         IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
@@ -215,11 +198,7 @@ contract LiquidUnstakePool is
         if (amountOut < _minOut) revert SwapMinOut(_minOut, amountOut);
         uint256 feeToTreasury = (feeAmount * 2500) / 10000;
         ethBalance -= amountOut;
-        IERC20Upgradeable(staking).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _amount
-        );
+        IERC20Upgradeable(staking).safeTransferFrom(msg.sender, address(this), _amount);
         IERC20Upgradeable(staking).safeTransfer(treasury, feeToTreasury);
         payable(msg.sender).sendValue(amountOut);
         emit Swap(msg.sender, _amount, amountOut, feeAmount, feeToTreasury);
@@ -239,8 +218,7 @@ contract LiquidUnstakePool is
         uint256 reservesAfterSwap = ethBalance.sub(amountOut, "Not enough ETH");
         uint256 finalFee = MIN_FEE;
         if (reservesAfterSwap < targetLiquidity) {
-            uint256 proportionalBp = (feeRange * reservesAfterSwap) /
-                targetLiquidity;
+            uint256 proportionalBp = (feeRange * reservesAfterSwap) / targetLiquidity;
             finalFee = MAX_FEE - proportionalBp;
         }
         feeAmount = (_amountIn * finalFee) / 10000;
@@ -252,7 +230,8 @@ contract LiquidUnstakePool is
     /// @param _requestedETH Requested ETH amount
     function getEthForValidator(uint256 _requestedETH) external nonReentrant onlyStaking {
         uint256 availableETH = getAvailableEthForValidator();
-        if (_requestedETH > availableETH) revert RequestedETHReachMinProportion(_requestedETH, availableETH);
+        if (_requestedETH > availableETH)
+            revert RequestedETHReachMinProportion(_requestedETH, availableETH);
         ethBalance -= _requestedETH;
         Staking(STAKING).depositETH{value: _requestedETH}(address(this));
         emit SendETHForValidator(block.timestamp, _requestedETH);
