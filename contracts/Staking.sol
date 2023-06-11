@@ -69,6 +69,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     error ZeroAddress(string _address);
     error RewardFeeTooBig(uint16 _sentFee, uint16 _maxFee);
     error NodeAlreadyUsed(bytes _pubkey);
+    error RewardsPerSecondTooBig(int _rewardsPerSecondSent, int _maxRewardsPerSecond);
 
     function _revertIfInvalidDeposit(uint256 _amount) private pure {
         if (_amount < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _amount);
@@ -170,6 +171,21 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         rewardsFee = _rewardsFee;
     }
 
+    function updateEstimatedRewardsPerSecond(
+        int _estimatedRewardsPerSecond
+    ) external onlyRole(UPDATER_ROLE) {
+        uint256 maxEstimatedRewardsPerSecond = totalAssets() / 10000000; // 0,00001%
+        if (
+            _estimatedRewardsPerSecond > int(maxEstimatedRewardsPerSecond) ||
+            _estimatedRewardsPerSecond < -int(maxEstimatedRewardsPerSecond)
+        )
+            revert RewardsPerSecondTooBig(
+                _estimatedRewardsPerSecond,
+                int(maxEstimatedRewardsPerSecond)
+            );
+        estimatedRewardsPerSecond = _estimatedRewardsPerSecond;
+    }
+
     /// @notice Updates nodes total balance
     /// @param _newNodesBalance Total current ETH balance from validators
     /// @dev Update the amount of ethers in the protocol, the estimated rewards per second and, if there are rewards, mint new mpETH to treasury
@@ -206,10 +222,6 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         }
 
         uint256 newNodesBalanceUnlockTime = block.timestamp + UPDATE_BALANCE_TIMELOCK;
-        // If balance decreased estimatedRewardsPerSecond must be negative
-        estimatedRewardsPerSecond =
-            (balanceIncremented ? int(diff) : -int(diff)) /
-            int(newNodesBalanceUnlockTime - localNodesBalanceUnlockTime);
         nodesBalanceUnlockTime = newNodesBalanceUnlockTime;
         nodesAndWithdrawalTotalBalance = newNodesAndWithdrawalTotalBalance;
         emit UpdateNodesBalance(newNodesAndWithdrawalTotalBalance);
