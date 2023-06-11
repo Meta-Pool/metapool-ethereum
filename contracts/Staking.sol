@@ -19,6 +19,7 @@ import "./Withdrawal.sol";
 /// @dev Implements ERC4626 and adapts some functions to simulate ETH native token as asset instead of an ERC20. Also allows the deposit of WETH
 contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
+    using AddressUpgradeable for address payable;
 
     struct Node {
         bytes pubkey;
@@ -272,6 +273,16 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         stakingBalance -= requiredBalanceFromStaking;
         nodesAndWithdrawalTotalBalance += requiredBalanceFromStaking;
         totalNodesActivated = _totalNodesActivated;
+    }
+
+    /// @notice Request ETH from LiquidUnstakePool to Withdrawal
+    /// @dev Request LiquidUnstakePool to deposit a certain amount of ETH and then send it to Withdrawal
+    /// @param _requestedETH Amount of ETH to request
+    function requestEthFromLiquidPoolToWithdrawal(
+        uint256 _requestedETH
+    ) external onlyOperational onlyRole(UPDATER_ROLE) {
+        LiquidUnstakePool(liquidUnstakePool).getEthForValidator(_requestedETH);
+        withdrawal.sendValue(_requestedETH);
     }
 
     /// @notice Deposit WETH

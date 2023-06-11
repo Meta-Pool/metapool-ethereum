@@ -249,12 +249,13 @@ contract LiquidUnstakePool is
 
     /// @notice Deposit ETH into Staking
     /// @dev Called from Staking to get ETH for validators
-    function getEthForValidator(uint256 _amount) external nonReentrant onlyStaking {
+    /// @param _requestedETH Requested ETH amount
+    function getEthForValidator(uint256 _requestedETH) external nonReentrant onlyStaking {
         uint256 availableETH = getAvailableEthForValidator();
-        if (_amount > availableETH) revert RequestedETHReachMinProportion(_amount, availableETH);
-        ethBalance -= _amount;
-        Staking(STAKING).depositETH{value: _amount}(address(this));
-        emit SendETHForValidator(block.timestamp, _amount);
+        if (_requestedETH > availableETH) revert RequestedETHReachMinProportion(_requestedETH, availableETH);
+        ethBalance -= _requestedETH;
+        Staking(STAKING).depositETH{value: _requestedETH}(address(this));
+        emit SendETHForValidator(block.timestamp, _requestedETH);
     }
 
     /// @notice Staking swap ETH for mpETH
@@ -269,6 +270,7 @@ contract LiquidUnstakePool is
     }
 
     function getAvailableEthForValidator() public view returns (uint256 availableETH) {
+        if (totalAssets() == 0) return 0;
         uint256 currentETHPercentage = (ethBalance * 10000) / totalAssets();
         availableETH = ((currentETHPercentage - minETHPercentage) * totalAssets()) / 10000;
     }
