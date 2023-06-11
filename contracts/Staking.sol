@@ -17,11 +17,7 @@ import "./Withdrawal.sol";
 /// @author MetaPool
 /// @notice Stake ETH and get mpETH as the representation of the portion owned through all the validators
 /// @dev Implements ERC4626 and adapts some functions to simulate ETH native token as asset instead of an ERC20. Also allows the deposit of WETH
-contract Staking is
-    Initializable,
-    ERC4626Upgradeable,
-    AccessControlUpgradeable
-{
+contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     struct Node {
@@ -50,16 +46,11 @@ contract Staking is
     uint16 public constant MAX_REWARDS_FEE = 2000;
     mapping(bytes => bool) public nodePubkeyUsed;
 
-    event Mint(
-        address indexed sender,
-        address indexed owner,
-        uint256 assets,
-        uint256 shares
-    );
+    event Mint(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
     event Stake(uint256 nodeId, bytes indexed pubkey);
     event UpdateNodeData(uint256 nodeId, Node data);
     event UpdateNodesBalance(uint256 balance);
-    
+
     error UpdateTooBig(
         uint256 _currentNodesBalance,
         uint256 _newSubmittedNodesBalance,
@@ -68,10 +59,7 @@ contract Staking is
     );
     error DepositTooLow(uint256 _minAmount, uint256 _amountSent);
     error UserNotWhitelisted(address _user);
-    error UpdateBalanceTimestampNotReached(
-        uint256 _unlockTimestamp,
-        uint256 _currentTimestamp
-    );
+    error UpdateBalanceTimestampNotReached(uint256 _unlockTimestamp, uint256 _currentTimestamp);
     error NotEnoughETHtoStake(
         uint256 _stakingBalance,
         uint256 _requestedToPool,
@@ -87,7 +75,8 @@ contract Staking is
     }
 
     modifier checkWhitelisting() {
-        if (whitelistEnabled && !whitelistedAccounts[msg.sender]) revert UserNotWhitelisted(msg.sender);
+        if (whitelistEnabled && !whitelistedAccounts[msg.sender])
+            revert UserNotWhitelisted(msg.sender);
         _;
     }
 
@@ -109,14 +98,8 @@ contract Staking is
         __ERC4626_init(IERC20Upgradeable(_weth));
         __ERC20_init("MetaPoolETH", "mpETH");
         __AccessControl_init();
-        require(
-            _weth.decimals() == 18,
-            "wNative token error, implementation for 18 decimals"
-        );
-        require(
-            address(this).balance == 0,
-            "Error initialize with no zero balance"
-        );
+        require(_weth.decimals() == 18, "wNative token error, implementation for 18 decimals");
+        require(address(this).balance == 0, "Error initialize with no zero balance");
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPDATER_ROLE, _updater);
         _grantRole(ACTIVATOR_ROLE, _activator);
@@ -154,48 +137,35 @@ contract Staking is
         whitelistEnabled = !whitelistEnabled;
     }
 
-    function addToWhitelist(
-        address[] calldata addresses
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function addToWhitelist(address[] calldata addresses) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 length = addresses.length;
-        for (uint256 i = 0; i != length; ++i)
-            whitelistedAccounts[addresses[i]] = true;
+        for (uint256 i = 0; i != length; ++i) whitelistedAccounts[addresses[i]] = true;
     }
 
     function removeFromWhitelist(
         address[] calldata addresses
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 length = addresses.length;
-        for (uint256 i = 0; i != length; ++i)
-            whitelistedAccounts[addresses[i]] = false;
+        for (uint256 i = 0; i != length; ++i) whitelistedAccounts[addresses[i]] = false;
     }
 
     /// @notice Update Withdrawal contract address
     /// @dev Admin function
-    function updateWithdrawal(address payable _withdrawal)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
+    function updateWithdrawal(address payable _withdrawal) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_withdrawal == address(0)) revert ZeroAddress("withdrawal");
         withdrawal = _withdrawal;
     }
 
     /// @notice Update LiquidPool contract address
     /// @dev Admin function
-    function updateLiquidPool(address payable _liquidPool)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
+    function updateLiquidPool(address payable _liquidPool) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_liquidPool == address(0)) revert ZeroAddress("liquidPool");
         liquidUnstakePool = _liquidPool;
     }
 
     /// @notice Update fee from rewards
     /// @dev Admin function
-    function updateRewardsFee(uint16 _rewardsFee)
-        public
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
+    function updateRewardsFee(uint16 _rewardsFee) public onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_rewardsFee > MAX_REWARDS_FEE) revert RewardFeeTooBig(_rewardsFee, MAX_REWARDS_FEE);
         rewardsFee = _rewardsFee;
     }
@@ -203,17 +173,19 @@ contract Staking is
     /// @notice Updates nodes total balance
     /// @param _newNodesBalance Total current ETH balance from validators
     /// @dev Update the amount of ethers in the protocol, the estimated rewards per second and, if there are rewards, mint new mpETH to treasury
-    function updateNodesBalance(uint256 _newNodesBalance) external onlyOperational onlyRole(UPDATER_ROLE) {
+    function updateNodesBalance(
+        uint256 _newNodesBalance
+    ) external onlyOperational onlyRole(UPDATER_ROLE) {
         uint256 localNodesBalanceUnlockTime = nodesBalanceUnlockTime;
         if (block.timestamp < localNodesBalanceUnlockTime)
-            revert UpdateBalanceTimestampNotReached(
-                localNodesBalanceUnlockTime,
-                block.timestamp
-            );
+            revert UpdateBalanceTimestampNotReached(localNodesBalanceUnlockTime, block.timestamp);
         uint256 localNodesAndWithdrawalTotalBalance = nodesAndWithdrawalTotalBalance;
-        uint256 newNodesAndWithdrawalTotalBalance = _newNodesBalance + withdrawal.balance - Withdrawal(withdrawal).totalPendingWithdraw();
+        uint256 newNodesAndWithdrawalTotalBalance = _newNodesBalance +
+            withdrawal.balance -
+            Withdrawal(withdrawal).totalPendingWithdraw();
 
-        bool balanceIncremented = newNodesAndWithdrawalTotalBalance > localNodesAndWithdrawalTotalBalance;
+        bool balanceIncremented = newNodesAndWithdrawalTotalBalance >
+            localNodesAndWithdrawalTotalBalance;
 
         // Check balance difference
         uint256 diff = balanceIncremented
@@ -233,11 +205,10 @@ contract Staking is
             _mint(treasury, shares);
         }
 
-        uint256 newNodesBalanceUnlockTime = block.timestamp +
-            UPDATE_BALANCE_TIMELOCK;
+        uint256 newNodesBalanceUnlockTime = block.timestamp + UPDATE_BALANCE_TIMELOCK;
         // If balance decreased estimatedRewardsPerSecond must be negative
-        estimatedRewardsPerSecond = 
-            (balanceIncremented ? int(diff) : -int(diff)) / 
+        estimatedRewardsPerSecond =
+            (balanceIncremented ? int(diff) : -int(diff)) /
             int(newNodesBalanceUnlockTime - localNodesBalanceUnlockTime);
         nodesBalanceUnlockTime = newNodesBalanceUnlockTime;
         nodesAndWithdrawalTotalBalance = newNodesAndWithdrawalTotalBalance;
@@ -248,17 +219,15 @@ contract Staking is
     /// @param _nodes Nodes info for staking
     /// @param _requestPoolAmount ETH amount to take from LiquidUnstakePool
     /// @param _requestWithdrawalAmount ETH amount to take from Withdrawal
-    function pushToBeacon(Node[] memory _nodes, uint256 _requestPoolAmount, uint256 _requestWithdrawalAmount)
-        external
-        onlyOperational onlyRole(ACTIVATOR_ROLE)
-    {
+    function pushToBeacon(
+        Node[] memory _nodes,
+        uint256 _requestPoolAmount,
+        uint256 _requestWithdrawalAmount
+    ) external onlyOperational onlyRole(ACTIVATOR_ROLE) {
         uint32 nodesLength = uint32(_nodes.length);
         uint256 requiredBalance = nodesLength * 32 ether;
         // TODO: Check exact amount of ETH needed to stake
-        if (
-            stakingBalance + _requestPoolAmount + _requestWithdrawalAmount <
-            requiredBalance
-        )
+        if (stakingBalance + _requestPoolAmount + _requestWithdrawalAmount < requiredBalance)
             revert NotEnoughETHtoStake(
                 stakingBalance,
                 _requestPoolAmount,
@@ -295,11 +264,7 @@ contract Staking is
 
     /// @notice Deposit WETH
     /// @dev Same function as in ERC4626 but removes maxDeposit check and add validDeposit modifier who checks for minDeposit
-    function deposit(uint256 _assets, address _receiver)
-        public
-        override
-        returns (uint256)
-    {
+    function deposit(uint256 _assets, address _receiver) public override returns (uint256) {
         uint256 _shares = previewDeposit(_assets);
         _deposit(msg.sender, _receiver, _assets, _shares);
         return _shares;
@@ -307,11 +272,7 @@ contract Staking is
 
     /// @notice Deposit ETH
     /// @dev Equivalent to deposit function but for native token. Sends assets 0 to _deposit to indicate that the assets amount will be msg.value
-    function depositETH(address _receiver)
-        public
-        payable
-        returns (uint256)
-    {
+    function depositETH(address _receiver) public payable returns (uint256) {
         uint256 _shares = previewDeposit(msg.value);
         _deposit(msg.sender, _receiver, 0, _shares);
         return _shares;
@@ -345,20 +306,18 @@ contract Staking is
 
     /// @dev Convert WETH to ETH if the deposit is in WETH. Receive _assets as 0 if deposit is in ETH
     /// @return Amount of assets received
-    function _getAssetsDeposit(uint256 _assets) private returns(uint256){
-        if (_assets == 0) { // ETH deposit
+    function _getAssetsDeposit(uint256 _assets) private returns (uint256) {
+        if (_assets == 0) {
+            // ETH deposit
             _assets = msg.value;
-        } else { // WETH deposit. Get WETH and convert to ETH
-            IERC20Upgradeable(asset()).safeTransferFrom(
-                msg.sender,
-                address(this),
-                _assets
-            );
+        } else {
+            // WETH deposit. Get WETH and convert to ETH
+            IERC20Upgradeable(asset()).safeTransferFrom(msg.sender, address(this), _assets);
             IWETH(asset()).withdraw(_assets);
         }
         return _assets;
     }
-    
+
     /// @notice Try to swap ETH for mpETH in the LiquidPool
     /// @dev Avoid try to get mpETH from LiquidPool if this is also the caller bcs LiquidPool.getEthForValidator called on pushToBeacon also calls depositETH, making a loop
     /// @return sharesFromPool Shares (mpETH) received from pool
@@ -368,17 +327,14 @@ contract Staking is
         address _receiver
     ) private returns (uint256 sharesFromPool, uint256 assetsToPool) {
         if (msg.sender != liquidUnstakePool) {
-            sharesFromPool = MathUpgradeable.min(
-                balanceOf(liquidUnstakePool),
-                _shares
-            );
+            sharesFromPool = MathUpgradeable.min(balanceOf(liquidUnstakePool), _shares);
 
             if (sharesFromPool > 0) {
                 assetsToPool = previewMint(sharesFromPool);
                 assert(
-                    LiquidUnstakePool(liquidUnstakePool).swapETHFormpETH{
-                        value: assetsToPool
-                    }(_receiver) == sharesFromPool
+                    LiquidUnstakePool(liquidUnstakePool).swapETHFormpETH{value: assetsToPool}(
+                        _receiver
+                    ) == sharesFromPool
                 );
             }
         }
