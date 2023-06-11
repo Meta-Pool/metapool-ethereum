@@ -25,6 +25,7 @@ contract Withdrawal is OwnableUpgradeable {
     uint256 public totalPendingWithdraw;
     uint256 public startTimestamp;
     mapping(address => withdrawRequest) public pendingWithdraws;
+    uint8 public withdrawalsStartEpoch;
 
     event RequestWithdraw(address indexed user, uint256 amount, uint256 unlockEpoch);
     event CompleteWithdraw(address indexed user, uint256 amount, uint256 unlockEpoch);
@@ -33,6 +34,8 @@ contract Withdrawal is OwnableUpgradeable {
     error EpochNotReached(uint256 _currentEpoch, uint256 _unlockEpoch);
     error UserDontHavePendingWithdraw(address _user);
     error NotEnoughETHtoStake(uint256 _requested, uint256 _available);
+    error StartEpochTooHigh(uint8 _startEpochSent, uint8 _maxStartEpoch);
+    error WithdrawalsNotStarted(uint256 _currentEpoch, uint256 _startEpoch);
 
     modifier onlyStaking() {
         if (msg.sender != mpETH) revert NotAuthorized(msg.sender, mpETH);
@@ -45,6 +48,7 @@ contract Withdrawal is OwnableUpgradeable {
         __Ownable_init();
         startTimestamp = block.timestamp;
         mpETH = _mpETH;
+        setWithdrawalsStartEpoch(8);
     }
 
     /// @return epoch Current epoch
@@ -57,12 +61,20 @@ contract Withdrawal is OwnableUpgradeable {
         return startTimestamp + (getEpoch() + 1) * 7 days - block.timestamp;
     }
 
+    /// @notice Set first epoch for allow withdrawals
+    function setWithdrawalsStartEpoch(uint8 _epoch) public onlyOwner {
+        if (_epoch > 32) revert StartEpochTooHigh(_epoch, 32);
+        withdrawalsStartEpoch = _epoch;
+    }
+
     /// @notice Queue ETH withdrawal
     /// @dev Multiples withdrawals are accumulative, but will restart the epoch unlock
     /// Shares used for this request should be already bruned in the calling function (Staking._withdraw)
     /// @param _amountOut ETH amount to withdraw
     /// @param _user Owner of the withdrawal
     function requestWithdraw(uint256 _amountOut, address _user) external onlyStaking {
+        if (getEpoch() < withdrawalsStartEpoch)
+            revert WithdrawalsNotStarted(getEpoch(), withdrawalsStartEpoch);
         uint256 unlockEpoch = getEpoch() + 1;
         pendingWithdraws[_user].amount += _amountOut;
         pendingWithdraws[_user].unlockEpoch = unlockEpoch;
