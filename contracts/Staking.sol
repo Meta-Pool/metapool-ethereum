@@ -174,7 +174,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
 
     function updateEstimatedRewardsPerSecond(
         int _estimatedRewardsPerSecond
-    ) external onlyRole(UPDATER_ROLE) {
+    ) public onlyRole(UPDATER_ROLE) {
         uint256 maxEstimatedRewardsPerSecond = totalAssets() / 10000000; // 0,00001%
         if (
             _estimatedRewardsPerSecond > int(maxEstimatedRewardsPerSecond) ||
@@ -191,8 +191,10 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     /// @param _newNodesBalance Total current ETH balance from validators
     /// @dev Update the amount of ethers in the protocol, the estimated rewards per second and, if there are rewards, mint new mpETH to treasury
     function updateNodesBalance(
-        uint256 _newNodesBalance
+        uint256 _newNodesBalance,
+        int _estimatedRewardsPerSecond
     ) external onlyOperational onlyRole(UPDATER_ROLE) {
+        updateEstimatedRewardsPerSecond(_estimatedRewardsPerSecond);
         uint256 localNodesBalanceUnlockTime = nodesBalanceUnlockTime;
         if (block.timestamp < localNodesBalanceUnlockTime)
             revert UpdateBalanceTimestampNotReached(localNodesBalanceUnlockTime, block.timestamp);
