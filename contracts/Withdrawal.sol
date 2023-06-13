@@ -36,6 +36,7 @@ contract Withdrawal is OwnableUpgradeable {
     error NotEnoughETHtoStake(uint256 _requested, uint256 _available);
     error StartEpochTooHigh(uint8 _startEpochSent, uint8 _maxStartEpoch);
     error WithdrawalsNotStarted(uint256 _currentEpoch, uint256 _startEpoch);
+    error NewEpochDelayNotReached(uint256 _timestampUnlock);
 
     modifier onlyStaking() {
         if (msg.sender != mpETH) revert NotAuthorized(msg.sender, mpETH);
@@ -61,6 +62,10 @@ contract Withdrawal is OwnableUpgradeable {
         return startTimestamp + (getEpoch() + 1) * 7 days - block.timestamp;
     }
 
+    function getEpochStartedTime() public view returns (uint256) {
+        return startTimestamp + getEpoch() * 7 days;
+    }
+
     /// @notice Set first epoch for allow withdrawals
     function setWithdrawalsStartEpoch(uint8 _epoch) public onlyOwner {
         if (_epoch > 32) revert StartEpochTooHigh(_epoch, 32);
@@ -82,12 +87,17 @@ contract Withdrawal is OwnableUpgradeable {
         emit RequestWithdraw(_user, _amountOut, unlockEpoch);
     }
 
-    // TODO: Add 48hs check after current epoch
     /// @notice Process pending withdrawal if there's enough ETH for the given user
     function completeWithdraw(address _user) external onlyStaking {
         withdrawRequest memory _withdrawR = pendingWithdraws[_user];
-        if (getEpoch() < _withdrawR.unlockEpoch)
+        uint256 currentEpoch = getEpoch();
+        if (currentEpoch < _withdrawR.unlockEpoch) {
             revert EpochNotReached(getEpoch(), _withdrawR.unlockEpoch);
+        } else if (currentEpoch == _withdrawR.unlockEpoch) {
+            uint256 epochPlusTwoDays = getEpochStartedTime() + 2 days;
+            if (block.timestamp < epochPlusTwoDays)
+                revert NewEpochDelayNotReached(epochPlusTwoDays);
+        }
         if (_withdrawR.amount == 0) revert UserDontHavePendingWithdraw(_user);
         totalPendingWithdraw -= _withdrawR.amount;
         delete pendingWithdraws[_user];

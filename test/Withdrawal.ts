@@ -14,6 +14,7 @@ import { toEthers } from "../lib/utils"
 import * as depositData from "../test_deposit_data.json"
 
 const provider = ethers.provider
+const TWO_DAYS = BigNumber.from(2 * 24 * 60 * 60)
 
 const getNextValidator = () =>
   Object.values(
@@ -142,7 +143,7 @@ describe("Withdrawal", function () {
       expect(await staking.convertToAssets(toEthers(1))).to.eq(mpETHPrice)
     })
 
-    it("Complete withdraw must revert before unlock time", async () => {
+    it("Revert complete withdraw before unlock time", async () => {
       await withdrawal.setWithdrawalsStartEpoch(0)
       const depositAmount = toEthers(32)
       await staking.connect(user).depositETH(user.address, { value: depositAmount })
@@ -155,7 +156,7 @@ describe("Withdrawal", function () {
       )
     })
 
-    it("Complete withdraw must revert with insufficient balance", async () => {
+    it("Revert complete withdraw before first 48hs from unlock epoch", async () => {
       await withdrawal.setWithdrawalsStartEpoch(0)
       const depositAmount = toEthers(32)
       await staking.connect(user).depositETH(user.address, { value: depositAmount })
@@ -163,6 +164,20 @@ describe("Withdrawal", function () {
       await staking.connect(user).redeem(depositAmount, user.address, user.address)
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
       await time.increase(await withdrawal.getEpochTimeLeft())
+      const epochPlusTwoDays = (await provider.getBlock("latest")).timestamp + TWO_DAYS.toNumber()
+      await expect(staking.connect(user).completeWithdraw())
+        .to.be.revertedWithCustomError(withdrawal, "NewEpochDelayNotReached")
+        .withArgs(epochPlusTwoDays)
+    })
+
+    it("Revert complete withdraw with insufficient balance", async () => {
+      await withdrawal.setWithdrawalsStartEpoch(0)
+      const depositAmount = toEthers(32)
+      await staking.connect(user).depositETH(user.address, { value: depositAmount })
+      await staking.connect(user).approve(staking.address, depositAmount)
+      await staking.connect(user).redeem(depositAmount, user.address, user.address)
+      await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
+      await time.increase((await withdrawal.getEpochTimeLeft()).add(TWO_DAYS))
       await expect(staking.connect(user).completeWithdraw()).to.be.revertedWith(
         "Address: insufficient balance"
       )
@@ -177,7 +192,7 @@ describe("Withdrawal", function () {
       await staking.connect(user).approve(staking.address, depositAmount)
       await staking.connect(user).redeem(depositAmount, user.address, user.address)
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
-      await time.increase(await withdrawal.getEpochTimeLeft())
+      await time.increase((await withdrawal.getEpochTimeLeft()).add(TWO_DAYS))
       await owner.sendTransaction({
         to: withdrawal.address,
         value: (await withdrawal.pendingWithdraws(user.address)).amount,
