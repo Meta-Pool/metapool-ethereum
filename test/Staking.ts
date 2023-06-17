@@ -27,7 +27,7 @@ const provider = ethers.provider;
 
 describe("Staking", () => {
   async function deployTest() {
-    const [owner, updater, activator, treasury, otherAccount] =
+    const [owner, updater, activator, treasury, user] =
       await ethers.getSigners();
     const Staking = await ethers.getContractFactory("Staking");
     const staking = await upgrades.deployProxy(
@@ -64,143 +64,146 @@ describe("Staking", () => {
     await staking.updateWithdrawal(withdrawal.address);
     await staking.updateLiquidPool(liquidUnstakePool.address);
     const wethC = new ethers.Contract(ADDRESSES[NATIVE], WETH_ABI);
-    const UPDATER_ROLE = await staking.UPDATER_ROLE();
-    const ACTIVATOR_ROLE = await staking.ACTIVATOR_ROLE();
 
     return {
       staking,
       owner,
       updater,
       activator,
-      otherAccount,
+      user,
       treasury,
       wethC,
       liquidUnstakePool,
       withdrawal,
-      UPDATER_ROLE,
-      ACTIVATOR_ROLE,
     };
   }
 
-  describe("Deposit", () => {
-    var staking: Contract,
-      liquidUnstakePool: Contract,
-      owner: SignerWithAddress,
-      wethC: Contract;
+  var staking: Contract,
+    liquidUnstakePool: Contract,
+    withdrawal: Contract,
+    owner: SignerWithAddress,
+    activator: SignerWithAddress,
+    updater: SignerWithAddress,
+    user: SignerWithAddress,
+    treasury: SignerWithAddress,
+    wethC: Contract;
 
-    it("Deposit < 0.01 ETH must revert with minAmount", async () => {
-      ({ owner, staking, wethC, liquidUnstakePool } = await loadFixture(
-        deployTest
-      ));
+  beforeEach(async () => {
+    ({ owner, activator, user, staking, liquidUnstakePool, updater, withdrawal, treasury, wethC } = await loadFixture(
+      deployTest
+    ))
+  })
+
+  describe("Deposit", () => {
+    it("depositETH < 0.01 ETH must revert with minAmount", async () => {
       let value = toEthers(0.0099);
       await expect(
         staking.depositETH(owner.address, { value })
       ).to.be.revertedWithCustomError(staking, "DepositTooLow");
     });
 
-    it("Deposit < 0.01 wETH must revert with minAmount", async () => {
+    it("deposit < 0.01 wETH must revert with minAmount", async () => {
       let value = toEthers(0.0099);
       await wethC.connect(owner).deposit({ value });
       await wethC.connect(owner).approve(staking.address, value);
       await expect(staking.deposit(value, owner.address)).to.be.revertedWithCustomError(staking, "DepositTooLow");
     });
 
+    it("mint < 0.01 wETH must revert with minAmount", async () => {
+      let value = toEthers(0.0099);
+      await wethC.connect(owner).deposit({ value });
+      await wethC.connect(owner).approve(staking.address, value);
+      await expect(staking.mint(value, owner.address)).to.be.revertedWithCustomError(staking, "DepositTooLow");
+    });
+
     it("Deposit ETH", async () => {
-      let value = toEthers(32);
-      expect(await staking.balanceOf(owner.address)).to.eq(0);
+      const value = toEthers(32);
       await staking.depositETH(owner.address, { value });
       expect(await staking.balanceOf(owner.address)).to.eq(value);
-      value = toEthers(9.51);
-      await staking.depositETH(owner.address, { value });
-      expect(await staking.balanceOf(owner.address)).to.eq(toEthers(41.51));
-      expect(await provider.getBalance(staking.address)).to.eq(toEthers(41.51));
+      expect(await provider.getBalance(staking.address)).to.eq(value);
+      // TODO: Check totalAssets, mpETHPrice, stakingBalance
     });
 
     it("Deposit WETH", async () => {
-      let value = toEthers(4);
+      let value = toEthers(32);
       await wethC.connect(owner).deposit({ value });
       await wethC.connect(owner).approve(staking.address, value);
       await staking.deposit(value, owner.address);
-      expect(await staking.balanceOf(owner.address)).to.eq(toEthers(45.51));
-      value = toEthers(22.49);
-      await wethC.connect(owner).deposit({ value });
-      await wethC.connect(owner).approve(staking.address, value);
-      await staking.deposit(value, owner.address);
-      expect(await staking.balanceOf(owner.address)).to.eq(toEthers(68));
+      expect(await staking.balanceOf(owner.address)).to.eq(value);
+      // TODO: Check totalAssets, mpETHPrice, stakingBalance
     });
 
     it("Deposit ETH and get mpETH from LiquidUnstakePool", async () => {
-      const value = toEthers(2);
-      await liquidUnstakePool.depositETH(owner.address, { value });
-      await staking.approve(liquidUnstakePool.address, value);
-      await liquidUnstakePool.swapmpETHforETH(value, 0);
-      const valueMinusFee = toEthers(1.975);
+      // Owner fund LiquidUnstakePool with mpETH
+      const value = toEthers(1);
+      await liquidUnstakePool.connect(owner).depositETH(owner.address, { value });
+      await staking.connect(owner).depositETH(owner.address, { value });
+      await staking.connect(owner).approve(liquidUnstakePool.address, value);
+      const { amountOut: minOut, feeAmount: totalFee } = await liquidUnstakePool.getAmountOut(value);
+      await liquidUnstakePool.swapmpETHforETH(value, minOut);
+      const treasuryFee = totalFee.mul(2500).div(10000);
       const poolmpETHBalanceBefore = await staking.balanceOf(
         liquidUnstakePool.address
       );
-      expect(poolmpETHBalanceBefore).to.eq(valueMinusFee);
+      expect(poolmpETHBalanceBefore).to.eq(value.sub(treasuryFee));
       const mpETHTotalSupplyBefore = await staking.totalSupply();
-      await staking.depositETH(owner.address, { value: valueMinusFee });
+
+      // User get mpETH from LiquidUnstakePool instead of staking
+      await staking.connect(user).depositETH(user.address, { value: value.sub(treasuryFee) });
       expect(await staking.balanceOf(liquidUnstakePool.address)).to.eq(0);
       expect(await staking.totalSupply()).to.eq(mpETHTotalSupplyBefore);
     });
 
-    it("Deposit ETH and get mpETH from LiquidUnstakePool", async () => {
-      const value = toEthers(2);
-      await liquidUnstakePool.depositETH(owner.address, { value });
-      await staking.approve(liquidUnstakePool.address, value);
-      await liquidUnstakePool.swapmpETHforETH(value, 0);
-      const valueMinusFee = toEthers(1.9766);
+    it("Deposit wETH and get mpETH from LiquidUnstakePool", async () => {
+      // Owner fund LiquidUnstakePool with mpETH
+      const value = toEthers(1);
+      await liquidUnstakePool.connect(owner).depositETH(owner.address, { value });
+      await staking.connect(owner).depositETH(owner.address, { value });
+      await staking.connect(owner).approve(liquidUnstakePool.address, value);
+      const { amountOut: minOut, feeAmount: totalFee } = await liquidUnstakePool.getAmountOut(value);
+      await liquidUnstakePool.swapmpETHforETH(value, minOut);
+      const treasuryFee = totalFee.mul(2500).div(10000);
       const poolmpETHBalanceBefore = await staking.balanceOf(
         liquidUnstakePool.address
       );
-      expect(poolmpETHBalanceBefore).to.eq(valueMinusFee);
+      expect(poolmpETHBalanceBefore).to.eq(value.sub(treasuryFee));
       const mpETHTotalSupplyBefore = await staking.totalSupply();
-      await staking.depositETH(owner.address, { value: valueMinusFee });
+
+      // User get mpETH from LiquidUnstakePool instead of staking
+      await wethC.connect(user).deposit({ value: value.sub(treasuryFee) });
+      await wethC.connect(user).approve(staking.address, value.sub(treasuryFee));
+      await staking.connect(user).deposit(value.sub(treasuryFee), user.address);
       expect(await staking.balanceOf(liquidUnstakePool.address)).to.eq(0);
       expect(await staking.totalSupply()).to.eq(mpETHTotalSupplyBefore);
     });
   });
 
   describe("Activate validator", () => {
-    var staking: Contract,
-      liquidUnstakePool: Contract,
-      owner: SignerWithAddress,
-      activator: SignerWithAddress,
-      otherAccount: SignerWithAddress,
-      ACTIVATOR_ROLE: Bytes;
-
-    it("Stake more than owned balance must revert", async () => {
-      ({
-        owner,
-        activator,
-        otherAccount,
-        staking,
-        ACTIVATOR_ROLE,
-        liquidUnstakePool,
-      } = await loadFixture(deployTest));
+    it("Push more than owned balance must revert", async () => {
       expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(toEthers(0));
       await expect(
         staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
       ).to.be.revertedWithCustomError(staking, "NotEnoughETHtoStake");
     });
 
-    it("Stake without permissions must revert", async () => {
+    it("Push without permissions must revert", async () => {
+      const ACTIVATOR_ROLE = await staking.ACTIVATOR_ROLE();
       await expect(
-        staking.connect(otherAccount).pushToBeacon([getNextValidator()], 0, 0)
+        staking.connect(user).pushToBeacon([getNextValidator()], 0, 0)
       ).to.be.revertedWith(
-        `AccessControl: account ${otherAccount.address.toLowerCase()} is missing role ${ACTIVATOR_ROLE}`
+        `AccessControl: account ${user.address.toLowerCase()} is missing role ${ACTIVATOR_ROLE}`
       );
     });
 
-    it("Stake 32 ETH", async () => {
+    it("Push 32 ETH", async () => {
       await staking.depositETH(owner.address, { value: toEthers(32) });
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0);
       expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(toEthers(32));
       expect(await staking.totalNodesActivated()).to.eq(1);
+      // Check: stakingBalance, totalAssets, mpETHPrice
     });
-
-    it("Stake using half ETH from LiquidUnstakePool", async () => {
+    
+    it("Push using half ETH from LiquidUnstakePool", async () => {
       const value = toEthers(32);
       await staking.depositETH(owner.address, { value });
       await liquidUnstakePool.depositETH(owner.address, { value });
@@ -213,53 +216,47 @@ describe("Staking", () => {
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value.div(2));
       expect(await liquidUnstakePool.ethBalance()).to.eq(value.div(2));
       expect(await staking.stakingBalance()).to.eq(value.div(2));
-      expect(await staking.totalNodesActivated()).to.eq(2);
+      expect(await staking.totalNodesActivated()).to.eq(1);
+      // Check: stakingBalance / 2, totalAssets, mpETHPrice
     });
 
-    it("Try to stake using ETH only from must revert with ETH/mpETH proportion", async () => {
+    it("Revert push requesting to LiquidUnstakePool with ETH/mpETH proportion", async () => {
       const value = toEthers(32);
       await liquidUnstakePool.depositETH(owner.address, { value });
-      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(toEthers(48));
-      expect(await liquidUnstakePool.ethBalance()).to.eq(toEthers(48));
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value);
+      expect(await liquidUnstakePool.ethBalance()).to.eq(value);
       await expect(
         staking.connect(activator).pushToBeacon([getNextValidator()], value, 0)
       ).to.be.revertedWithCustomError(liquidUnstakePool, "RequestedETHReachMinProportion");
     });
 
-    it("Stake using ETH only from LiquidUnstakePool", async () => {
-      const value = toEthers(32);
-      const liquidPreviousBalance = await provider.getBalance(liquidUnstakePool.address)
-      await liquidUnstakePool.depositETH(owner.address, { value });
-      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(liquidPreviousBalance.add(value));
-      expect(await liquidUnstakePool.ethBalance()).to.eq(liquidPreviousBalance.add(value));
-      const stakingBalanceBefore = await staking.stakingBalance();
-      await staking
-        .connect(activator)
-        .pushToBeacon([getNextValidator()], value, 0);
-      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(liquidPreviousBalance);
-      expect(await liquidUnstakePool.ethBalance()).to.eq(liquidPreviousBalance);
-      expect(await staking.stakingBalance()).to.eq(stakingBalanceBefore);
-      expect(await staking.totalNodesActivated()).to.eq(3);
-    });
+    it("Push using ETH only from LiquidUnstakePool", async () => {
+      const value = toEthers(32)
+        .mul(10000)
+        .div(await liquidUnstakePool.minETHPercentage())
+      await liquidUnstakePool.depositETH(owner.address, { value })
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value)
+      expect(await liquidUnstakePool.ethBalance()).to.eq(value)
+      const stakingBalanceBefore = await staking.stakingBalance()
+      await staking.connect(activator).pushToBeacon([getNextValidator()], toEthers(32), 0)
+      expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value.div(2))
+      expect(await liquidUnstakePool.ethBalance()).to.eq(value.div(2))
+      expect(await staking.stakingBalance()).to.eq(stakingBalanceBefore)
+      expect(await staking.totalNodesActivated()).to.eq(1)
+    })
+
+    // TODO: Test push with withdrawal
   });
 
   describe("Update nodes balance", () => {
-    var staking: Contract,
-      owner: SignerWithAddress,
-      updater: SignerWithAddress,
-      treasury: SignerWithAddress,
-      activator: SignerWithAddress,
-      UPDATER_ROLE: Bytes;
-
-    const depositValue = BigNumber.from(toEthers(660)),
+    const depositValue = BigNumber.from(toEthers(64)),
       newNodes = parseInt(depositValue.div(toEthers(32)).toString()),
       nodesBalance = BigNumber.from(newNodes).mul(toEthers(32)),
       onePercent = BigNumber.from(nodesBalance).mul(10).div(10000),
       newNodesBalance = nodesBalance.add(onePercent);
 
-    it("Update without permissions must revert", async () => {
-      ({ owner, updater, activator, staking, UPDATER_ROLE, treasury } =
-        await loadFixture(deployTest));
+    it("Revert without permissions", async () => {
+      const UPDATER_ROLE = await staking.UPDATER_ROLE();
       await staking.depositETH(owner.address, { value: depositValue });
       await staking.connect(activator).pushToBeacon(
         [...Array(newNodes).keys()].map((_) => getNextValidator()),
@@ -267,42 +264,77 @@ describe("Staking", () => {
       );
       expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(nodesBalance);
       await expect(
-        staking.updateNodesBalance(newNodesBalance)
+        staking.updateNodesBalance(newNodesBalance, 0)
       ).to.be.revertedWith(
         `AccessControl: account ${owner.address.toLowerCase()} is missing role ${UPDATER_ROLE}`
       );
     });
 
-    it("Update balance more than 0.1% must revert", async () => {
+    it("Revert before timelock", async () => {
+      await staking.connect(owner).depositETH(owner.address, { value: depositValue });
+      await staking.connect(activator).pushToBeacon(
+        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        0, 0
+      )
+      await staking.connect(updater).updateNodesBalance(nodesBalance, 0);
       await expect(
-        staking.connect(updater).updateNodesBalance(newNodesBalance.add(1))
-      ).to.be.revertedWithCustomError(staking, "UpdateTooBig");
+        staking.connect(updater).updateNodesBalance(newNodesBalance, 0)
+      ).to.be.revertedWithCustomError(staking, "UpdateBalanceTimestampNotReached");
+    });
+
+    it("Revert with more than 0.1%", async () => {
+      await staking.connect(owner).depositETH(owner.address, { value: depositValue });
+      await staking.connect(activator).pushToBeacon(
+        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        0, 0
+      )
+      await expect(
+        staking.connect(updater).updateNodesBalance(newNodesBalance.add(1), 0)
+      ).to.be.revertedWithCustomError(staking, "UpdateTooBig").withArgs(nodesBalance, newNodesBalance.add(1), newNodesBalance.add(1).sub(nodesBalance), nodesBalance.div(1000));
+    });
+
+    it("Update with balance plus 0.1%", async () => {
+      await staking.connect(owner).depositETH(owner.address, { value: depositValue });
+      await staking.connect(activator).pushToBeacon(
+        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        0, 0
+      )
+      await staking.connect(updater).updateNodesBalance(newNodesBalance, 0);
+      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(newNodesBalance);
+      expect(await staking.totalAssets()).to.eq(newNodesBalance);
+      // TODO: Check mpETHPrice
     });
 
     it("Update nodes balance to same amount", async () => {
+      await staking.connect(owner).depositETH(owner.address, { value: depositValue });
+      await staking.connect(activator).pushToBeacon(
+        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        0, 0
+      )
+      await staking.connect(updater).updateNodesBalance(nodesBalance, 0);
+      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(nodesBalance);
+      expect(await staking.totalAssets()).to.eq(depositValue);
       expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1));
-      await staking.connect(updater).updateNodesBalance(nodesBalance);
+      await time.increaseTo(await staking.nodesBalanceUnlockTime());
+      await staking.connect(updater).updateNodesBalance(nodesBalance, 0);
       expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(nodesBalance);
       expect(await staking.totalAssets()).to.eq(depositValue);
       expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1));
     });
 
-    it("Update before timelock must revert", async () => {
-      await expect(
-        staking.connect(updater).updateNodesBalance(newNodesBalance)
-      ).to.be.revertedWithCustomError(staking, "UpdateBalanceTimestampNotReached");
-    });
-
     it("Update nodes balance and mint mpETH for treasury", async () => {
-      expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1));
-      const timelock = await staking.UPDATE_BALANCE_TIMELOCK();
-      await time.increase(timelock);
+      await staking.connect(owner).depositETH(owner.address, { value: depositValue });
+      await staking.connect(activator).pushToBeacon(
+        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        0, 0
+      )
       const stakingFee = await staking.rewardsFee();
       const expectedFee = onePercent.mul(stakingFee).div(10000);
-      await staking.connect(updater).updateNodesBalance(newNodesBalance);
+      await staking.connect(updater).updateNodesBalance(newNodesBalance, 0);
       expect(await staking.balanceOf(treasury.address)).to.eq(expectedFee);
       expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(newNodesBalance);
       expect(await staking.totalAssets()).to.eq(depositValue.add(onePercent));
+      // Check: mpETHPrice, estimatedRewardsPerSecond
     });
 
     it("Nodes balance grows by estimatedRewardsPerSecond as expected", async () => {
@@ -327,14 +359,12 @@ describe("Staking", () => {
           .add(nodesAndWithdrawalTotalBalance)
           .add(estimatedRewardsPerSecond.mul(increaseTime))
       );
+      // Check: mpETHPrice
     });
   });
 
   describe("Withdraw and redeem", () => {
-    var staking: Contract, owner: SignerWithAddress;
-
     it("Withdraw must revert with max withdraw", async () => {
-      ({ owner, staking } = await loadFixture(deployTest));
       await expect(
         staking.withdraw(1, owner.address, owner.address)
       ).to.be.revertedWith("ERC4626: withdraw more than max");
@@ -347,41 +377,170 @@ describe("Staking", () => {
     });
 
     it("Withdraw must not revert", async () => {
+      await withdrawal.setWithdrawalsStartEpoch(0)
       await staking.withdraw(0, owner.address, owner.address);
     });
 
     it("Redeem must not revert", async () => {
+      await withdrawal.setWithdrawalsStartEpoch(0)
       await staking.redeem(0, owner.address, owner.address);
     });
   });
 
-  describe("Whitelisting", () => {
-    var staking: Contract,
-      owner: SignerWithAddress
+  describe("Privileged functions", () => {
+    describe("Admin functions", async() => {
+      describe("Whitelisting", () => {
+        it("Enable whitelisting", async () => {
+          expect(await staking.whitelistEnabled()).to.be.false;
+          await staking.toggleWhitelistEnabled();
+          expect(await staking.whitelistEnabled()).to.be.true;
+        });
+  
+        it("Revert deposit from non whitelisted", async () => {
+          await staking.toggleWhitelistEnabled();
+          await expect(staking.depositETH(owner.address, { value: toEthers(32) })).to.be.revertedWithCustomError(staking, "UserNotWhitelisted")
+        });
+  
+        it("Whitelist account and deposit", async () => {
+          await staking.toggleWhitelistEnabled();
+          await staking.addToWhitelist([owner.address]);
+          expect(await staking.whitelistedAccounts(owner.address)).to.be.true;
+          await staking.depositETH(owner.address, { value: toEthers(32) });
+        });
+  
+        it("Remove from whitelist", async() => {
+          await staking.toggleWhitelistEnabled();
+          await staking.addToWhitelist([owner.address]);
+          expect(await staking.whitelistedAccounts(owner.address)).to.be.true;
+          await staking.removeFromWhitelist([owner.address]);
+          expect(await staking.whitelistedAccounts(owner.address)).to.be.false;
+          await expect(staking.depositETH(owner.address, { value: toEthers(32) })).to.be.revertedWithCustomError(staking, "UserNotWhitelisted")
+        });
+      })
+  
+      describe("rewardsFee", () => {
+        it("Revert update without permissions", async () => {
+          const DEFAULT_ADMIN_ROLE = await staking.DEFAULT_ADMIN_ROLE()
+          await expect(staking.connect(user).updateRewardsFee(100)).to.be.revertedWith(
+            `AccessControl: account ${user.address.toLowerCase()} is missing role ${DEFAULT_ADMIN_ROLE}`
+          )
+        })
+  
+        it("Revert update to MAX_REWARDS_FEE + 1", async () => {
+          const MAX_REWARDS_FEE = await staking.MAX_REWARDS_FEE()
+          await expect(
+            staking.connect(owner).updateRewardsFee(MAX_REWARDS_FEE + 1)
+          ).to.be.revertedWithCustomError(staking, "FeeSentTooBig").withArgs(MAX_REWARDS_FEE + 1, MAX_REWARDS_FEE)
+        })
+  
+        it("Update to MAX_REWARDS_FEE", async () => {
+          const MAX_REWARDS_FEE = await staking.MAX_REWARDS_FEE()
+          await staking.connect(owner).updateRewardsFee(MAX_REWARDS_FEE)
+          expect(await staking.rewardsFee()).to.eq(MAX_REWARDS_FEE)
+        })
+  
+        it("Update to 0%", async () => {
+          await staking.connect(owner).updateRewardsFee(0)
+          expect(await staking.rewardsFee()).to.eq(0)
+        })
+      })
+  
+      describe("depositFee", () => {
+        it("Revert update without permissions", async () => {
+          const DEFAULT_ADMIN_ROLE = await staking.DEFAULT_ADMIN_ROLE()
+          await expect(staking.connect(user).updateDepositFee(100)).to.be.revertedWith(
+            `AccessControl: account ${user.address.toLowerCase()} is missing role ${DEFAULT_ADMIN_ROLE}`
+          )
+        })
+  
+        it("Revert update to MAX_DEPOSIT_FEE + 1", async () => {
+          const MAX_DEPOSIT_FEE = await staking.MAX_DEPOSIT_FEE()
+          await expect(
+            staking.connect(owner).updateDepositFee(MAX_DEPOSIT_FEE + 1)
+          ).to.be.revertedWithCustomError(staking, "FeeSentTooBig")
+        })
+  
+        it("Update to MAX_DEPOSIT_FEE", async () => {
+          const MAX_DEPOSIT_FEE = await staking.MAX_DEPOSIT_FEE()
+          await staking.connect(owner).updateDepositFee(MAX_DEPOSIT_FEE)
+          expect(await staking.depositFee()).to.eq(MAX_DEPOSIT_FEE)
+        })
+  
+        it("Update to 0%", async () => {
+          await staking.connect(owner).updateDepositFee(0)
+          expect(await staking.depositFee()).to.eq(0)
+        })
+      })
+    })
 
-    it("Enable whitelisting", async () => {
-      ({ owner, staking } = await loadFixture(
-        deployTest
-      ));
-      expect(await staking.whitelistEnabled()).to.be.false;
-      await staking.toggleWhitelistEnabled();
-      expect(await staking.whitelistEnabled()).to.be.true;
-    });
+    describe("Updater functions", async() => {
+      describe("estimatedRewardsPerSecond", () => {
+        it("Update without permissions must revert", async () => {
+          const UPDATER_ROLE = await staking.UPDATER_ROLE()
+          await expect(
+            staking.connect(user).updateEstimatedRewardsPerSecond(0)
+          ).to.be.revertedWith(
+            `AccessControl: account ${user.address.toLowerCase()} is missing role ${UPDATER_ROLE}`
+          )
+        })
+  
+        it("Revert update with totalAssets * 0,00001% + 1", async () => {
+          const totalAssets = await staking.totalAssets()
+          const maxRewardsPerSecond = totalAssets.div(10000000)
+          await expect(
+            staking.connect(updater).updateEstimatedRewardsPerSecond(maxRewardsPerSecond.add(1))
+          )
+            .to.be.revertedWithCustomError(staking, "RewardsPerSecondTooBig")
+            .withArgs(maxRewardsPerSecond.add(1), maxRewardsPerSecond)
+        })
+  
+        it("Revert update with -(totalAssets * 0,00001% - 1)", async () => {
+          const totalAssets = await staking.totalAssets()
+          const minRewardsPerSecond = totalAssets.div(10000000).mul(-1)
+          await expect(
+            staking.connect(updater).updateEstimatedRewardsPerSecond(minRewardsPerSecond.sub(1))
+          )
+            .to.be.revertedWithCustomError(staking, "RewardsPerSecondTooBig")
+            .withArgs(minRewardsPerSecond.sub(1), minRewardsPerSecond)
+        })
+  
+        it("Update estimatedRewardsPerSecond", async () => {
+          const totalAssets = await staking.totalAssets()
+          const maxRewardsPerSecond = totalAssets.div(10000000)
+          await staking.connect(updater).updateEstimatedRewardsPerSecond(maxRewardsPerSecond)
+          expect(await staking.estimatedRewardsPerSecond()).to.eq(maxRewardsPerSecond)
+        })
+      })
 
-    it("Revert deposit from non whitelisted", async () => {
-      await expect(staking.depositETH(owner.address, { value: toEthers(32) })).to.be.revertedWithCustomError(staking, "UserNotWhitelisted")
-    });
+      describe("requestEthFromLiquidPoolToWithdrawal", async() => {
+        it("Revert without updater role", async () => {
+          const UPDATER_ROLE = await staking.UPDATER_ROLE()
+          await expect(
+            staking.connect(user).requestEthFromLiquidPoolToWithdrawal(toEthers(1))
+          ).to.be.revertedWith(
+            `AccessControl: account ${user.address.toLowerCase()} is missing role ${UPDATER_ROLE}`
+          )
+        })
 
-    it("Whitelist account and deposit", async () => {
-      await staking.addToWhitelist([owner.address]);
-      expect(await staking.whitelistedAccounts(owner.address)).to.be.true;
-      await staking.depositETH(owner.address, { value: toEthers(32) });
-    });
+        it("Revert request max available ETH + 1", async () => {
+          const maxAvailableETH = await liquidUnstakePool.getAvailableEthForValidator()
+          await expect(
+            staking.connect(updater).requestEthFromLiquidPoolToWithdrawal(maxAvailableETH.add(1))
+          ).to.be.revertedWithCustomError(liquidUnstakePool, "RequestedETHReachMinProportion").withArgs(maxAvailableETH.add(1), maxAvailableETH)
+        })
 
-    it("Remove from whitelist", async() => {
-      await staking.removeFromWhitelist([owner.address]);
-      expect(await staking.whitelistedAccounts(owner.address)).to.be.false;
-      await expect(staking.depositETH(owner.address, { value: toEthers(32) })).to.be.revertedWithCustomError(staking, "UserNotWhitelisted")
-    });
+        it("requestEthFromLiquidPoolToWithdrawal > 0", async () => {
+          const value = toEthers(32)
+            .mul(10000)
+            .div(await liquidUnstakePool.minETHPercentage())
+          await liquidUnstakePool.depositETH(owner.address, { value })
+          const maxAvailableETH = await liquidUnstakePool.getAvailableEthForValidator()
+          const requestedETH = maxAvailableETH.sub(1)
+          await staking.connect(updater).requestEthFromLiquidPoolToWithdrawal(requestedETH)
+          expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value.sub(requestedETH))
+          expect(await provider.getBalance(withdrawal.address)).to.eq(requestedETH)
+        })
+      })
+    })
   })
 });
