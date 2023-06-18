@@ -130,12 +130,40 @@ describe("Staking", () => {
     })
 
     it("Deposit WETH", async () => {
-      let value = toEthers(32)
+      const value = toEthers(32)
       await wethC.connect(owner).deposit({ value })
       await wethC.connect(owner).approve(staking.address, value)
       await staking.deposit(value, owner.address)
       expect(await staking.balanceOf(owner.address)).to.eq(value)
       // TODO: Check totalAssets, mpETHPrice, stakingBalance
+    })
+
+    it("Deposit ETH with depositFee", async () => {
+      const MAX_DEPOSIT_FEE = await staking.MAX_DEPOSIT_FEE()
+      await staking.connect(owner).updateDepositFee(MAX_DEPOSIT_FEE)
+      expect(await staking.depositFee()).to.eq(MAX_DEPOSIT_FEE)
+      const value = toEthers(32)
+      const fee = value.mul(MAX_DEPOSIT_FEE).div(10000)
+      const treasurympETHBefore = await staking.balanceOf(treasury.address)
+      await staking.depositETH(owner.address, { value })
+      expect(await provider.getBalance(staking.address)).to.eq(value)
+      expect(await staking.balanceOf(owner.address)).to.eq(value.sub(fee))
+      expect(await staking.balanceOf(treasury.address)).to.eq(treasurympETHBefore.add(fee))
+    })
+
+    it("Deposit wETH with depositFee", async () => {
+      const MAX_DEPOSIT_FEE = await staking.MAX_DEPOSIT_FEE()
+      await staking.connect(owner).updateDepositFee(MAX_DEPOSIT_FEE)
+      expect(await staking.depositFee()).to.eq(MAX_DEPOSIT_FEE)
+      const value = toEthers(32)
+      const fee = value.mul(MAX_DEPOSIT_FEE).div(10000)
+      await wethC.connect(owner).deposit({ value })
+      await wethC.connect(owner).approve(staking.address, value)
+      const treasurympETHBefore = await staking.balanceOf(treasury.address)
+      await staking.deposit(value, owner.address)
+      expect(await provider.getBalance(staking.address)).to.eq(value)
+      expect(await staking.balanceOf(owner.address)).to.eq(value.sub(fee))
+      expect(await staking.balanceOf(treasury.address)).to.eq(treasurympETHBefore.add(fee))
     })
 
     it("Deposit ETH and get mpETH from LiquidUnstakePool", async () => {

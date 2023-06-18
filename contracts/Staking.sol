@@ -44,8 +44,10 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     address payable public withdrawal;
     mapping(address => bool) public whitelistedAccounts;
     bool public whitelistEnabled;
-    uint16 public constant MAX_REWARDS_FEE = 2000;
+    uint16 public constant MAX_REWARDS_FEE = 2000; // 20%
     mapping(bytes => bool) public nodePubkeyUsed;
+    uint16 public constant MAX_DEPOSIT_FEE = 100; // 1%
+    uint16 public depositFee;
 
     event Mint(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
     event Stake(uint256 nodeId, bytes indexed pubkey);
@@ -68,13 +70,9 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         uint256 _requiredBalance
     );
     error ZeroAddress(string _address);
-    error RewardFeeTooBig(uint16 _sentFee, uint16 _maxFee);
+    error FeeSentTooBig(uint16 _sentFee, uint16 _maxFee);
     error NodeAlreadyUsed(bytes _pubkey);
     error RewardsPerSecondTooBig(int _rewardsPerSecondSent, int _maxRewardsPerSecond);
-
-    function _revertIfInvalidDeposit(uint256 _amount) private pure {
-        if (_amount < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _amount);
-    }
 
     modifier checkWhitelisting() {
         if (whitelistEnabled && !whitelistedAccounts[msg.sender])
@@ -168,8 +166,15 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     /// @notice Update fee from rewards
     /// @dev Admin function
     function updateRewardsFee(uint16 _rewardsFee) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_rewardsFee > MAX_REWARDS_FEE) revert RewardFeeTooBig(_rewardsFee, MAX_REWARDS_FEE);
+        if (_rewardsFee > MAX_REWARDS_FEE) revert FeeSentTooBig(_rewardsFee, MAX_REWARDS_FEE);
         rewardsFee = _rewardsFee;
+    }
+
+    /// @notice Update fee from deposits
+    /// @dev Admin function
+    function updateDepositFee(uint16 _depositFee) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_depositFee > MAX_DEPOSIT_FEE) revert FeeSentTooBig(_depositFee, MAX_DEPOSIT_FEE);
+        depositFee = _depositFee;
     }
 
     function updateEstimatedRewardsPerSecond(
@@ -318,14 +323,23 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         uint256 _shares
     ) internal override onlyOperational checkWhitelisting {
         _assets = _getAssetsDeposit(_assets);
-        _revertIfInvalidDeposit(_assets);
-        (uint256 sharesFromPool, uint256 assetsToPool) = _getmpETHFromPool(_shares, _receiver);
+        if (_assets < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _assets);
+        (uint256 sharesFromPool, uint256 assetsToPool) = _getmpETHFromPool(_shares, address(this));
         _shares -= sharesFromPool;
         _assets -= assetsToPool;
 
-        if (_shares > 0) _mint(_receiver, _shares);
+        if (_shares > 0) _mint(address(this), _shares);
 
+        uint256 totalShares = sharesFromPool + _shares;
+        uint256 sharesToTreasury = msg.sender != liquidUnstakePool
+            ? (totalShares * depositFee) / 10000
+            : 0;
+        uint256 sharesToUser = totalShares - sharesToTreasury;
         stakingBalance += _assets;
+
+        if (sharesToTreasury > 0) _transfer(address(this), treasury, sharesToTreasury);
+        _transfer(address(this), _receiver, sharesToUser);
+
         emit Deposit(_caller, _receiver, _assets + assetsToPool, _shares + sharesFromPool);
     }
 
