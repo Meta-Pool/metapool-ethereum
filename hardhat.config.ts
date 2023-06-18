@@ -1,9 +1,9 @@
-import { HardhatUserConfig } from "hardhat/config";
-import "@openzeppelin/hardhat-upgrades";
-import "@nomicfoundation/hardhat-toolbox";
-import "hardhat-gas-reporter";
+import { HardhatUserConfig } from "hardhat/config"
+import "@openzeppelin/hardhat-upgrades"
+import "@nomicfoundation/hardhat-toolbox"
+import "hardhat-gas-reporter"
 
-require("dotenv").config();
+require("dotenv").config()
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -29,11 +29,11 @@ const config: HardhatUserConfig = {
     },
   },
   gasReporter: {
-    enabled: JSON.parse(process.env.REPORT_GAS || "false")
+    enabled: JSON.parse(process.env.REPORT_GAS || "false"),
   },
   etherscan: {
     apiKey: String(process.env.API_KEY),
   },
-};
+}
 
-export default config;
+export default config
