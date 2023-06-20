@@ -251,6 +251,7 @@ contract LiquidUnstakePool is
     function getAvailableEthForValidator() public view returns (uint256 availableETH) {
         if (totalAssets() == 0) return 0;
         uint256 currentETHPercentage = (ethBalance * 10000) / totalAssets();
+        if (currentETHPercentage <= minETHPercentage) return 0;
         availableETH = ((currentETHPercentage - minETHPercentage) * totalAssets()) / 10000;
     }
 }
