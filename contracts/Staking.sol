@@ -80,13 +80,9 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         _;
     }
 
-    modifier onlyOperational() {
-        if (withdrawal == address(0)) revert ZeroAddress("withdrawal");
-        if (liquidUnstakePool == address(0)) revert ZeroAddress("liquidUnstakePool");
-        _;
-    }
-
     function initialize(
+        address _liquidPool,
+        address _withdrawal,
         address _depositContract,
         IERC20MetadataUpgradeable _weth,
         address _treasury,
@@ -95,14 +91,16 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     ) external initializer {
         if (_treasury == address(0)) revert ZeroAddress("treasury");
         if (_depositContract == address(0)) revert ZeroAddress("depositContract");
+        require(_weth.decimals() == 18, "wNative token error, implementation for 18 decimals");
+        require(address(this).balance == 0, "Error initialize with no zero balance");
         __ERC4626_init(IERC20Upgradeable(_weth));
         __ERC20_init("MetaPoolETH", "mpETH");
         __AccessControl_init();
-        require(_weth.decimals() == 18, "wNative token error, implementation for 18 decimals");
-        require(address(this).balance == 0, "Error initialize with no zero balance");
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPDATER_ROLE, _updater);
         _grantRole(ACTIVATOR_ROLE, _activator);
+        updateWithdrawal(payable(_withdrawal));
+        updateLiquidPool(payable(_liquidPool));
         updateRewardsFee(500);
         treasury = _treasury;
         depositContract = IDeposit(_depositContract);
@@ -151,14 +149,14 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
 
     /// @notice Update Withdrawal contract address
     /// @dev Admin function
-    function updateWithdrawal(address payable _withdrawal) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function updateWithdrawal(address payable _withdrawal) public onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_withdrawal == address(0)) revert ZeroAddress("withdrawal");
         withdrawal = _withdrawal;
     }
 
     /// @notice Update LiquidPool contract address
     /// @dev Admin function
-    function updateLiquidPool(address payable _liquidPool) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function updateLiquidPool(address payable _liquidPool) public onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_liquidPool == address(0)) revert ZeroAddress("liquidPool");
         liquidUnstakePool = _liquidPool;
     }
@@ -198,7 +196,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     function updateNodesBalance(
         uint256 _newNodesBalance,
         int _estimatedRewardsPerSecond
-    ) external onlyOperational onlyRole(UPDATER_ROLE) {
+    ) external onlyRole(UPDATER_ROLE) {
         updateEstimatedRewardsPerSecond(_estimatedRewardsPerSecond);
         uint256 localNodesBalanceUnlockTime = nodesBalanceUnlockTime;
         if (block.timestamp < localNodesBalanceUnlockTime)
@@ -243,7 +241,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         Node[] memory _nodes,
         uint256 _requestPoolAmount,
         uint256 _requestWithdrawalAmount
-    ) external onlyOperational onlyRole(ACTIVATOR_ROLE) {
+    ) external onlyRole(ACTIVATOR_ROLE) {
         uint32 nodesLength = uint32(_nodes.length);
         uint256 requiredBalance = nodesLength * 32 ether;
         // TODO: Check exact amount of ETH needed to stake
@@ -287,7 +285,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     /// @param _requestedETH Amount of ETH to request
     function requestEthFromLiquidPoolToWithdrawal(
         uint256 _requestedETH
-    ) external onlyOperational onlyRole(UPDATER_ROLE) {
+    ) external onlyRole(UPDATER_ROLE) {
         LiquidUnstakePool(liquidUnstakePool).getEthForValidator(_requestedETH);
         withdrawal.sendValue(_requestedETH);
     }
@@ -321,7 +319,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         address _receiver,
         uint256 _assets,
         uint256 _shares
-    ) internal override onlyOperational checkWhitelisting {
+    ) internal override checkWhitelisting {
         _assets = _getAssetsDeposit(_assets);
         if (_assets < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _assets);
         (uint256 sharesFromPool, uint256 assetsToPool) = _getmpETHFromPool(_shares, address(this));
@@ -386,7 +384,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         address owner,
         uint256 assets,
         uint256 shares
-    ) internal override onlyOperational {
+    ) internal override {
         if (caller != owner) {
             _spendAllowance(owner, caller, shares);
         }

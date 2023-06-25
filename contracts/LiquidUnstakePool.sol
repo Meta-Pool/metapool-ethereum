@@ -66,11 +66,12 @@ contract LiquidUnstakePool is
         IERC20MetadataUpgradeable _weth,
         address _treasury
     ) external initializer {
+        require(address(this).balance == 0, "Error initialize with no zero balance");
+        require(_weth.decimals() == 18, "wNative token error, implementation for 18 decimals");
         __ERC4626_init(IERC20Upgradeable(_weth));
         __ERC20_init("MetaETHLP", "mpETH/ETH");
         __Ownable_init();
         __ReentrancyGuard_init();
-        require(_weth.decimals() == 18, "wNative token error, implementation for 18 decimals");
         STAKING = _staking;
         treasury = _treasury;
         updateTargetLiquidity(30 ether);

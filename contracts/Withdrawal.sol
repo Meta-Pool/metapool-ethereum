@@ -46,6 +46,7 @@ contract Withdrawal is OwnableUpgradeable {
     receive() external payable {}
 
     function initialize(address payable _mpETH) external initializer {
+        require(address(this).balance == 0, "Error initialize with no zero balance");
         __Ownable_init();
         startTimestamp = block.timestamp;
         mpETH = _mpETH;
