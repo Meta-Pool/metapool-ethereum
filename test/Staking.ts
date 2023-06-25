@@ -1,82 +1,15 @@
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { expect } from "chai"
-import { BigNumber, Bytes, Contract } from "ethers"
-import { ethers, upgrades } from "hardhat"
-import * as depositData from "../test_deposit_data.json"
-import { NETWORK } from "../lib/env"
-const {
-  DEPOSIT_CONTRACT_ADDRESS,
-  ADDRESSES,
-  WETH_ABI,
-  NATIVE,
-} = require(`../lib/constants/${NETWORK}`)
+import { BigNumber, Contract } from "ethers"
+import { ethers } from "hardhat"
 import { toEthers } from "../lib/utils"
-
-const getNextValidator = () =>
-  Object.values(
-    (({ pubkey, withdrawal_credentials, signature, deposit_data_root }) => ({
-      pubkey,
-      withdrawal_credentials,
-      signature,
-      deposit_data_root,
-    }))(depositData.default.pop())
-  )
+import { deployTest } from "./utils"
+import { getNextValidator } from "./utils"
 
 const provider = ethers.provider
 
 describe("Staking", () => {
-  async function deployTest() {
-    const [owner, updater, activator, treasury, user] = await ethers.getSigners()
-    const Staking = await ethers.getContractFactory("Staking")
-    const staking = await upgrades.deployProxy(
-      Staking,
-      [
-        DEPOSIT_CONTRACT_ADDRESS,
-        ADDRESSES[NATIVE],
-        treasury.address,
-        updater.address,
-        activator.address,
-      ],
-      {
-        initializer: "initialize",
-      }
-    )
-    await staking.deployed()
-
-    const LiquidUnstakePool = await ethers.getContractFactory("LiquidUnstakePool")
-    const liquidUnstakePool = await upgrades.deployProxy(
-      LiquidUnstakePool,
-      [staking.address, ADDRESSES[NATIVE], treasury.address],
-      {
-        initializer: "initialize",
-      }
-    )
-    await liquidUnstakePool.deployed()
-
-    const Withdrawal = await ethers.getContractFactory("Withdrawal")
-    const withdrawal = await upgrades.deployProxy(Withdrawal, [staking.address], {
-      initializer: "initialize",
-    })
-    await withdrawal.deployed()
-
-    await staking.updateWithdrawal(withdrawal.address)
-    await staking.updateLiquidPool(liquidUnstakePool.address)
-    const wethC = new ethers.Contract(ADDRESSES[NATIVE], WETH_ABI)
-
-    return {
-      staking,
-      owner,
-      updater,
-      activator,
-      user,
-      treasury,
-      wethC,
-      liquidUnstakePool,
-      withdrawal,
-    }
-  }
-
   var staking: Contract,
     liquidUnstakePool: Contract,
     withdrawal: Contract,
