@@ -202,9 +202,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         if (block.timestamp < localNodesBalanceUnlockTime)
             revert UpdateBalanceTimestampNotReached(localNodesBalanceUnlockTime, block.timestamp);
         uint256 localNodesAndWithdrawalTotalBalance = nodesAndWithdrawalTotalBalance;
-        uint256 newNodesAndWithdrawalTotalBalance = _newNodesBalance +
-            withdrawal.balance -
-            Withdrawal(withdrawal).totalPendingWithdraw();
+        uint256 newNodesAndWithdrawalTotalBalance = _newNodesBalance + withdrawal.balance;
 
         bool balanceIncremented = newNodesAndWithdrawalTotalBalance >
             localNodesAndWithdrawalTotalBalance;
