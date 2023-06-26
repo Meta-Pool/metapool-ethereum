@@ -211,12 +211,12 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         uint256 diff = balanceIncremented
             ? newNodesAndWithdrawalTotalBalance - localNodesAndWithdrawalTotalBalance
             : localNodesAndWithdrawalTotalBalance - newNodesAndWithdrawalTotalBalance;
-        if (diff > localNodesAndWithdrawalTotalBalance / 1000)
+        if (diff > localNodesAndWithdrawalTotalBalance / 100)
             revert UpdateTooBig(
                 localNodesAndWithdrawalTotalBalance,
                 newNodesAndWithdrawalTotalBalance,
                 diff,
-                localNodesAndWithdrawalTotalBalance / 1000
+                localNodesAndWithdrawalTotalBalance / 100
             );
         // If the balance didn't increase there's no reward to get fees
         if (balanceIncremented) {

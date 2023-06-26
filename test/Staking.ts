@@ -212,7 +212,7 @@ describe("Staking", () => {
     const depositValue = BigNumber.from(toEthers(64)),
       newNodes = parseInt(depositValue.div(toEthers(32)).toString()),
       nodesBalance = BigNumber.from(newNodes).mul(toEthers(32)),
-      onePercent = BigNumber.from(nodesBalance).mul(10).div(10000),
+      onePercent = BigNumber.from(nodesBalance).mul(100).div(10000),
       newNodesBalance = nodesBalance.add(onePercent)
 
     it("Revert without permissions", async () => {
@@ -242,7 +242,7 @@ describe("Staking", () => {
       ).to.be.revertedWithCustomError(staking, "UpdateBalanceTimestampNotReached")
     })
 
-    it("Revert with more than 0.1%", async () => {
+    it("Revert with more than 1%", async () => {
       await staking.connect(owner).depositETH(owner.address, { value: depositValue })
       await staking.connect(activator).pushToBeacon(
         [...Array(newNodes).keys()].map((_) => getNextValidator()),
@@ -255,7 +255,7 @@ describe("Staking", () => {
           nodesBalance,
           newNodesBalance.add(1),
           newNodesBalance.add(1).sub(nodesBalance),
-          nodesBalance.div(1000)
+          nodesBalance.div(100)
         )
     })
 
