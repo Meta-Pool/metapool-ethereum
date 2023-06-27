@@ -4,7 +4,7 @@ import fs from "fs"
 import { NETWORK } from "../lib/env"
 
 async function main() {
-  const contractName = process.env.contractName ? process.env.contractName : ""
+  const contractName = process.env.TARGET ? process.env.TARGET : ""
   if (contractName === "") throw new Error("Provide a contractName")
   const deploys = JSON.parse(fs.readFileSync("deploys.json").toString())
   const proxyName = `${contractName}Proxy`

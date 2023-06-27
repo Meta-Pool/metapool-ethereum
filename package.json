@@ -1,4 +1,11 @@
 {
+  "scripts": {
+    "compile": "clear && npx hardhat compile",
+    "deploy": "clear && npx hardhat compile && npx hardhat run scripts/deploy.ts --network $NETWORK",
+    "test": "clear && npx hardhat compile && npx hardhat test",
+    "verify": "clear && npx hardhat compile && npx hardhat run scripts/verify.ts --network $NETWORK",
+    "upgrade": "clear && npx hardhat compile && npx hardhat run scripts/upgrade.ts --network $NETWORK"
+  },
   "dependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.5",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.7",
@@ -8,6 +15,7 @@
     "@openzeppelin/contracts-upgradeable": "^4.8.0",
     "@typechain/ethers-v5": "^10.2.0",
     "@typechain/hardhat": "^6.1.5",
+    "axios": "^1.4.0",
     "chai": "^4.3.7",
     "dotenv": "^16.0.3",
     "ethers": "^5.7.2",
