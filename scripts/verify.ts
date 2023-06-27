@@ -1,6 +1,7 @@
 import hre from "hardhat"
 import fs from "fs"
-import { NETWORK } from "../lib/env"
+import axios from "axios"
+import { NETWORK, ETHERSCAN_API_KEY } from "../lib/env"
 
 type contractToVerify = {
   name: string
@@ -18,7 +19,22 @@ async function main() {
   }
 
   for (const contract of contracts) {
-    await verifyContract(contract)
+    try {
+      // TODO: API url to constants and select by network
+      const response = await axios.get(
+        `https://api-goerli.etherscan.io/api?module=contract&action=getsourcecode&address=${contract.address}&apikey=${ETHERSCAN_API_KEY}`
+      )
+      const isVerified = response.data.result[0].SourceCode !== ""
+      if (isVerified) {
+        console.log(`${contract.name} at ${contract.address} already verified`)
+      } else {
+        console.log(`${contract.name} at ${contract.address} not verified`)
+        await verifyContract(contract)
+      }
+    } catch (error) {
+      console.log(`Error checking verification for ${contract.name} at ${contract.address}`)
+      console.error(error)
+    }
   }
 }
 
