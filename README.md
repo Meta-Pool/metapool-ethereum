@@ -41,3 +41,22 @@ Diagrams figures
 ![liquidUnstakePool diagram](https://github.com/Meta-Pool/metapool-ethereum/blob/main/diagrams/liquidUnstakePool.png?raw=true)
 
 ![withdrawal diagram](https://github.com/Meta-Pool/metapool-ethereum/blob/main/diagrams/withdrawal.png?raw=true)
+
+## Commands
+Note: 
+- All commands also compile the contracts
+- Replace `goerli` for your target network. Must be on `hardhat.config.ts`
+#### Compile contracts
+`npm run compile`
+
+#### Run tests
+`npm test`
+
+#### Deploy
+`npm run deploy goerli`
+
+#### Verify contracts
+`npm run verify goerli`
+
+#### Upgrade implementations
+`TARGET=Staking npm run upgrade goerli`
