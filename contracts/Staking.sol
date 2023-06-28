@@ -84,6 +84,10 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     error RewardsPerSecondTooBig(int _rewardsPerSecondSent, int _maxRewardsPerSecond);
     error InvalidEpochs(uint64 _from, uint64 _to);
     error InvalidEpochFrom(uint64 _from, uint64 _lastEpochReported);
+    error AcceptableUnderlyingChangeTooBig(
+        uint16 _acceptableUnderlyingChangeSent,
+        uint16 _maxAcceptableUnderlyingChange
+    );
 
     modifier checkWhitelisting() {
         if (whitelistEnabled && !whitelistedAccounts[msg.sender])
@@ -185,6 +189,17 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         depositFee = _depositFee;
     }
 
+    function updateAcceptableUnderlyingChange(
+        uint16 _acceptableUnderlyingChange
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_acceptableUnderlyingChange > MAX_ACCEPTABLE_UNDERLYING_CHANGE)
+            revert AcceptableUnderlyingChangeTooBig(
+                _acceptableUnderlyingChange,
+                MAX_ACCEPTABLE_UNDERLYING_CHANGE
+            );
+        acceptableUnderlyingChange = _acceptableUnderlyingChange;
+    }
+
     function updateEstimatedRewardsPerSecond(
         int _estimatedRewardsPerSecond
     ) public onlyRole(UPDATER_ROLE) {
@@ -208,10 +223,9 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         EpochsReport memory _epochsReport,
         int _estimatedRewardsPerSecond
     ) external onlyRole(UPDATER_ROLE) {
-        updateEstimatedRewardsPerSecond(_estimatedRewardsPerSecond);
         if (_epochsReport.from > _epochsReport.to)
             revert InvalidEpochs(_epochsReport.from, _epochsReport.to);
-        if (_epochsReport.from < lastEpochReported)
+        if (_epochsReport.from != lastEpochReported + 1 && lastEpochReported != 0)
             revert InvalidEpochFrom(_epochsReport.from, lastEpochReported);
         {
             uint256 localNodesBalanceUnlockTime = nodesBalanceUnlockTime;
@@ -221,6 +235,8 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
                     block.timestamp
                 );
         }
+        updateEstimatedRewardsPerSecond(_estimatedRewardsPerSecond);
+
         uint256 currentTotalUnderlying = totalUnderlying;
         uint256 newTotalUnderlying = currentTotalUnderlying +
             _epochsReport.rewards -
