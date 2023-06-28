@@ -28,26 +28,35 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         bytes32 depositDataRoot;
     }
 
-    address public treasury;
-    address payable public liquidUnstakePool;
+    struct EpochsReport {
+        uint64 from;
+        uint64 to;
+        uint256 rewards;
+        uint256 penalties;
+    }
+
     IDeposit public depositContract;
-    uint256 public nodesAndWithdrawalTotalBalance;
-    uint256 public stakingBalance;
+    address payable public liquidUnstakePool;
+    address payable public withdrawal;
+    address public treasury;
+    uint256 public totalUnderlying;
     uint256 public nodesBalanceUnlockTime;
     uint64 public constant UPDATE_BALANCE_TIMELOCK = 4 hours;
     uint64 public constant MIN_DEPOSIT = 0.01 ether;
     int public estimatedRewardsPerSecond;
     uint32 public totalNodesActivated;
-    uint16 public rewardsFee;
     bytes32 public constant UPDATER_ROLE = keccak256("UPDATER_ROLE");
     bytes32 public constant ACTIVATOR_ROLE = keccak256("ACTIVATOR_ROLE");
-    address payable public withdrawal;
     mapping(address => bool) public whitelistedAccounts;
     bool public whitelistEnabled;
+    uint16 public rewardsFee;
     uint16 public constant MAX_REWARDS_FEE = 2000; // 20%
     mapping(bytes => bool) public nodePubkeyUsed;
-    uint16 public constant MAX_DEPOSIT_FEE = 100; // 1%
     uint16 public depositFee;
+    uint16 public constant MAX_DEPOSIT_FEE = 100; // 1%
+    uint16 public acceptableUnderlyingChange;
+    uint16 public constant MAX_ACCEPTABLE_UNDERLYING_CHANGE = 200; // 2%
+    uint64 public lastEpochReported;
 
     event Mint(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
     event Stake(uint256 nodeId, bytes indexed pubkey);
@@ -73,6 +82,8 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     error FeeSentTooBig(uint16 _sentFee, uint16 _maxFee);
     error NodeAlreadyUsed(bytes _pubkey);
     error RewardsPerSecondTooBig(int _rewardsPerSecondSent, int _maxRewardsPerSecond);
+    error InvalidEpochs(uint64 _from, uint64 _to);
+    error InvalidEpochFrom(uint64 _from, uint64 _lastEpochReported);
 
     modifier checkWhitelisting() {
         if (whitelistEnabled && !whitelistedAccounts[msg.sender])
@@ -105,6 +116,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         treasury = _treasury;
         depositContract = IDeposit(_depositContract);
         nodesBalanceUnlockTime = uint64(block.timestamp);
+        acceptableUnderlyingChange = 10; // 0.1%
     }
 
     /// @dev Needed to receive ETH from WETH deposits
@@ -118,14 +130,12 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
             int(block.timestamp - (nodesBalanceUnlockTime - UPDATE_BALANCE_TIMELOCK));
         if (rewardsSinceUpdate >= 0) {
             assets =
-                stakingBalance +
-                nodesAndWithdrawalTotalBalance +
+                totalUnderlying +
                 uint(rewardsSinceUpdate) -
                 Withdrawal(withdrawal).totalPendingWithdraw();
         } else {
             assets =
-                stakingBalance +
-                nodesAndWithdrawalTotalBalance -
+                totalUnderlying -
                 uint(-rewardsSinceUpdate) -
                 Withdrawal(withdrawal).totalPendingWithdraw();
         }
@@ -190,34 +200,47 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         estimatedRewardsPerSecond = _estimatedRewardsPerSecond;
     }
 
-    /// @notice Updates nodes total balance
-    /// @param _newNodesBalance Total current ETH balance from validators
+    /// @notice Report staking results by epoch
+    /// @param _epochsReport Total rewards and penalties for the given epochs
+    /// @param _estimatedRewardsPerSecond Estimated rewards per second
     /// @dev Update the amount of ethers in the protocol, the estimated rewards per second and, if there are rewards, mint new mpETH to treasury
-    function updateNodesBalance(
-        uint256 _newNodesBalance,
+    function reportEpochs(
+        EpochsReport memory _epochsReport,
         int _estimatedRewardsPerSecond
     ) external onlyRole(UPDATER_ROLE) {
         updateEstimatedRewardsPerSecond(_estimatedRewardsPerSecond);
-        uint256 localNodesBalanceUnlockTime = nodesBalanceUnlockTime;
-        if (block.timestamp < localNodesBalanceUnlockTime)
-            revert UpdateBalanceTimestampNotReached(localNodesBalanceUnlockTime, block.timestamp);
-        uint256 localNodesAndWithdrawalTotalBalance = nodesAndWithdrawalTotalBalance;
-        uint256 newNodesAndWithdrawalTotalBalance = _newNodesBalance + withdrawal.balance;
+        if (_epochsReport.from > _epochsReport.to)
+            revert InvalidEpochs(_epochsReport.from, _epochsReport.to);
+        if (_epochsReport.from < lastEpochReported)
+            revert InvalidEpochFrom(_epochsReport.from, lastEpochReported);
+        {
+            uint256 localNodesBalanceUnlockTime = nodesBalanceUnlockTime;
+            if (block.timestamp < localNodesBalanceUnlockTime)
+                revert UpdateBalanceTimestampNotReached(
+                    localNodesBalanceUnlockTime,
+                    block.timestamp
+                );
+        }
+        uint256 currentTotalUnderlying = totalUnderlying;
+        uint256 newTotalUnderlying = currentTotalUnderlying +
+            _epochsReport.rewards -
+            _epochsReport.penalties;
 
-        bool balanceIncremented = newNodesAndWithdrawalTotalBalance >
-            localNodesAndWithdrawalTotalBalance;
+        bool balanceIncremented = newTotalUnderlying > currentTotalUnderlying;
 
         // Check balance difference
         uint256 diff = balanceIncremented
-            ? newNodesAndWithdrawalTotalBalance - localNodesAndWithdrawalTotalBalance
-            : localNodesAndWithdrawalTotalBalance - newNodesAndWithdrawalTotalBalance;
-        if (diff > localNodesAndWithdrawalTotalBalance / 100)
+            ? newTotalUnderlying - currentTotalUnderlying
+            : currentTotalUnderlying - newTotalUnderlying;
+        uint256 maxAcceptableUnderlyingchange = currentTotalUnderlying / acceptableUnderlyingChange;
+        if (diff > maxAcceptableUnderlyingchange)
             revert UpdateTooBig(
-                localNodesAndWithdrawalTotalBalance,
-                newNodesAndWithdrawalTotalBalance,
+                currentTotalUnderlying,
+                newTotalUnderlying,
                 diff,
-                localNodesAndWithdrawalTotalBalance / 100
+                maxAcceptableUnderlyingchange
             );
+
         // If the balance didn't increase there's no reward to get fees
         if (balanceIncremented) {
             uint256 assetsAsFee = (diff * rewardsFee) / 10000;
@@ -227,8 +250,8 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
 
         uint256 newNodesBalanceUnlockTime = block.timestamp + UPDATE_BALANCE_TIMELOCK;
         nodesBalanceUnlockTime = newNodesBalanceUnlockTime;
-        nodesAndWithdrawalTotalBalance = newNodesAndWithdrawalTotalBalance;
-        emit UpdateNodesBalance(newNodesAndWithdrawalTotalBalance);
+        totalUnderlying = newTotalUnderlying;
+        emit UpdateNodesBalance(newTotalUnderlying);
     }
 
     /// @notice Stake ETH in contract to validators
@@ -242,6 +265,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     ) external onlyRole(ACTIVATOR_ROLE) {
         uint32 nodesLength = uint32(_nodes.length);
         uint256 requiredBalance = nodesLength * 32 ether;
+        uint256 stakingBalance = address(this).balance;
         // TODO: Check exact amount of ETH needed to stake
         if (stakingBalance + _requestPoolAmount + _requestWithdrawalAmount < requiredBalance)
             revert NotEnoughETHtoStake(
@@ -271,10 +295,6 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
             emit Stake(_totalNodesActivated, _nodes[i].pubkey);
         }
 
-        uint256 requiredBalanceFromStaking = requiredBalance - _requestWithdrawalAmount;
-        // Amount from Withdrawal isn't included as this amount was never substracted from nodesAndWithdrawalTotalBalance and never added to stakingBalance
-        stakingBalance -= requiredBalanceFromStaking;
-        nodesAndWithdrawalTotalBalance += requiredBalanceFromStaking;
         totalNodesActivated = _totalNodesActivated;
     }
 
@@ -306,7 +326,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
 
     function completeWithdraw() external {
         (uint256 amount, ) = Withdrawal(withdrawal).pendingWithdraws(msg.sender);
-        nodesAndWithdrawalTotalBalance -= amount;
+        totalUnderlying -= amount;
         Withdrawal(withdrawal).completeWithdraw(msg.sender);
     }
 
@@ -331,7 +351,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
             ? (totalShares * depositFee) / 10000
             : 0;
         uint256 sharesToUser = totalShares - sharesToTreasury;
-        stakingBalance += _assets;
+        totalUnderlying += _assets;
 
         if (sharesToTreasury > 0) _transfer(address(this), treasury, sharesToTreasury);
         _transfer(address(this), _receiver, sharesToUser);
