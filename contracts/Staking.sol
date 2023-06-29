@@ -343,11 +343,6 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         return _shares;
     }
 
-    // TODO: Delete this function and move call to withdrawal
-    function completeWithdraw() external {
-        Withdrawal(withdrawal).completeWithdraw(msg.sender);
-    }
-
     /// @notice Confirm ETH or WETH deposit
     /// @dev Use ETH or get and convert WETH to ETH, get mpETH from pool and/or mint new mpETH
     function _deposit(
