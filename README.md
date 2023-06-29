@@ -8,9 +8,9 @@ Allows users to stake ETH or WETH, instant redeem of mpETH (with a small fee) or
 
 ### Goerli Testnet Deploys
 
-Staking deployed to [0xACF87D0920e0866bCe1B4C3766D24EE743BCe68b](https://goerli.etherscan.io/address/0xACF87D0920e0866bCe1B4C3766D24EE743BCe68b)
-LiquidUnstakePool deployed to [0xEa6718D15cF41CCcc12Ba6D5409A7bF11a3903f6](https://goerli.etherscan.io/address/0xEa6718D15cF41CCcc12Ba6D5409A7bF11a3903f6)
-Withdrawal deployed to [0x5ba5414Da3bbE6002DB68094887CfF52ee5bF8Bd](https://goerli.etherscan.io/address/0x5ba5414Da3bbE6002DB68094887CfF52ee5bF8Bd)
+Staking deployed to [0x748c905130CC15b92B97084Fd1eEBc2d2419146f](https://goerli.etherscan.io/address/0x748c905130CC15b92B97084Fd1eEBc2d2419146f)
+LiquidUnstakePool deployed to [0x37774000C885e9355eA7C6B025EbF1704141093C](https://goerli.etherscan.io/address/0x37774000C885e9355eA7C6B025EbF1704141093C)
+Withdrawal deployed to [0x1A8c25ADc96Fb62183C4CB5B9F0c47746B847e05](https://goerli.etherscan.io/address/0x1A8c25ADc96Fb62183C4CB5B9F0c47746B847e05)
 
 ## Contracts
 
