@@ -65,7 +65,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     event Mint(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
     event Stake(uint256 nodeId, bytes indexed pubkey);
     event UpdateNodeData(uint256 nodeId, Node data);
-    event UpdateNodesBalance(uint256 balance);
+    event ReportEpochs(EpochsReport report, uint256 newTotalUnderlying);
 
     error UpdateTooBig(
         uint256 _currentNodesBalance,
@@ -251,14 +251,14 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         uint256 diff = balanceIncremented
             ? newTotalUnderlying - currentTotalUnderlying
             : currentTotalUnderlying - newTotalUnderlying;
-        uint256 maxAcceptableUnderlyingchange = (currentTotalUnderlying *
+        uint256 maxAcceptableUnderlyingChangeAmount = (currentTotalUnderlying *
             acceptableUnderlyingChange) / 10000;
-        if (diff > maxAcceptableUnderlyingchange)
+        if (diff > maxAcceptableUnderlyingChangeAmount)
             revert UpdateTooBig(
                 currentTotalUnderlying,
                 newTotalUnderlying,
                 diff,
-                maxAcceptableUnderlyingchange
+                maxAcceptableUnderlyingChangeAmount
             );
 
         // If the balance didn't increase there's no reward to get fees
@@ -270,7 +270,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
 
         totalUnderlying = newTotalUnderlying;
         updateEstimatedRewardsPerSecond(_estimatedRewardsPerSecond);
-        emit UpdateNodesBalance(newTotalUnderlying);
+        emit ReportEpochs(_epochsReport, newTotalUnderlying);
     }
 
     /// @notice Stake ETH in contract to validators
@@ -331,6 +331,8 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     /// @dev Same function as in ERC4626 but removes maxDeposit check and add validDeposit modifier who checks for minDeposit
     function deposit(uint256 _assets, address _receiver) public override returns (uint256) {
         uint256 _shares = previewDeposit(_assets);
+        IERC20Upgradeable(asset()).safeTransferFrom(msg.sender, address(this), _assets);
+        IWETH(asset()).withdraw(_assets);
         _deposit(msg.sender, _receiver, _assets, _shares);
         return _shares;
     }
@@ -339,7 +341,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     /// @dev Equivalent to deposit function but for native token. Sends assets 0 to _deposit to indicate that the assets amount will be msg.value
     function depositETH(address _receiver) public payable returns (uint256) {
         uint256 _shares = previewDeposit(msg.value);
-        _deposit(msg.sender, _receiver, 0, _shares);
+        _deposit(msg.sender, _receiver, msg.value, _shares);
         return _shares;
     }
 
@@ -351,39 +353,25 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         uint256 _assets,
         uint256 _shares
     ) internal override checkWhitelisting {
-        _assets = _getAssetsDeposit(_assets);
         if (_assets < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _assets);
         (uint256 sharesFromPool, uint256 assetsToPool) = _getmpETHFromPool(_shares, address(this));
-        _shares -= sharesFromPool;
-        _assets -= assetsToPool;
+        uint256 sharesToMint = _shares - sharesFromPool;
+        uint256 assetsToAdd = _assets - assetsToPool;
 
-        if (_shares > 0) _mint(address(this), _shares);
+        if (sharesToMint > 0) _mint(address(this), sharesToMint);
+        totalUnderlying += assetsToAdd;
 
-        uint256 totalShares = sharesFromPool + _shares;
-        uint256 sharesToTreasury = msg.sender != liquidUnstakePool
-            ? (totalShares * depositFee) / 10000
-            : 0;
-        uint256 sharesToUser = totalShares - sharesToTreasury;
-        totalUnderlying += _assets;
+        uint256 sharesToUser = _shares;
 
-        if (sharesToTreasury > 0) _transfer(address(this), treasury, sharesToTreasury);
+        if (msg.sender != liquidUnstakePool) {
+            uint256 sharesToTreasury = (_shares * depositFee) / 10000;
+            _transfer(address(this), treasury, sharesToTreasury);
+            sharesToUser -= sharesToTreasury;
+        }
+
         _transfer(address(this), _receiver, sharesToUser);
 
-        emit Deposit(_caller, _receiver, _assets + assetsToPool, _shares + sharesFromPool);
-    }
-
-    /// @dev Convert WETH to ETH if the deposit is in WETH. Receive _assets as 0 if deposit is in ETH
-    /// @return Amount of assets received
-    function _getAssetsDeposit(uint256 _assets) private returns (uint256) {
-        if (_assets == 0) {
-            // ETH deposit
-            _assets = msg.value;
-        } else {
-            // WETH deposit. Get WETH and convert to ETH
-            IERC20Upgradeable(asset()).safeTransferFrom(msg.sender, address(this), _assets);
-            IWETH(asset()).withdraw(_assets);
-        }
-        return _assets;
+        emit Deposit(_caller, _receiver, _assets, _shares);
     }
 
     /// @notice Try to swap ETH for mpETH in the LiquidPool
