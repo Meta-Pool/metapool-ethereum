@@ -78,7 +78,7 @@ describe("Withdrawal", function () {
       await staking.connect(user).approve(staking.address, depositAmount)
       await staking.connect(user).redeem(depositAmount, user.address, user.address)
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
-      await expect(staking.connect(user).completeWithdraw()).to.be.revertedWithCustomError(
+      await expect(withdrawal.connect(user).completeWithdraw()).to.be.revertedWithCustomError(
         withdrawal,
         "EpochNotReached"
       )
@@ -93,7 +93,7 @@ describe("Withdrawal", function () {
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
       await time.increase(await withdrawal.getEpochTimeLeft())
       const epochPlusTwoDays = (await provider.getBlock("latest")).timestamp + TWO_DAYS.toNumber()
-      await expect(staking.connect(user).completeWithdraw())
+      await expect(withdrawal.connect(user).completeWithdraw())
         .to.be.revertedWithCustomError(withdrawal, "NewEpochDelayNotReached")
         .withArgs(epochPlusTwoDays)
     })
@@ -106,7 +106,7 @@ describe("Withdrawal", function () {
       await staking.connect(user).redeem(depositAmount, user.address, user.address)
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
       await time.increase((await withdrawal.getEpochTimeLeft()).add(TWO_DAYS))
-      await expect(staking.connect(user).completeWithdraw()).to.be.revertedWith(
+      await expect(withdrawal.connect(user).completeWithdraw()).to.be.revertedWith(
         "Address: insufficient balance"
       )
     })
@@ -125,7 +125,7 @@ describe("Withdrawal", function () {
         to: withdrawal.address,
         value: (await withdrawal.pendingWithdraws(user.address)).amount,
       })
-      await staking.connect(user).completeWithdraw()
+      await withdrawal.connect(user).completeWithdraw()
       expect((await withdrawal.pendingWithdraws(user.address)).amount).to.eq(0)
       expect((await withdrawal.pendingWithdraws(user.address)).unlockEpoch).to.eq(0)
       expect(await withdrawal.totalPendingWithdraw()).to.eq(0)
@@ -168,12 +168,12 @@ describe("Withdrawal", function () {
       })
       expect(await provider.getBalance(withdrawal.address)).eq(depositAmount)
       expect(await provider.getBalance(staking.address)).eq(depositAmount)
-      expect(await staking.stakingBalance()).eq(depositAmount)
+      expect(await staking.totalUnderlying()).eq(depositAmount)
       const mpETHPrice = await staking.convertToAssets(toEthers(1))
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, depositAmount)
       expect(await provider.getBalance(withdrawal.address)).eq(0)
       expect(await provider.getBalance(staking.address)).eq(0)
-      expect(await staking.stakingBalance()).eq(0)
+      expect(await staking.totalUnderlying()).eq(depositAmount)
       expect(await staking.convertToAssets(toEthers(1))).to.eq(mpETHPrice)
     })
   })
