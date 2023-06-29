@@ -124,7 +124,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         treasury = _treasury;
         depositContract = IDeposit(_depositContract);
         submitReportUnlockTime = uint64(block.timestamp);
-        acceptableUnderlyingChange = 10; // 0.1%
+        acceptableUnderlyingChange = 100; // 1%
     }
 
     /// @dev Needed to receive ETH from WETH deposits
@@ -137,15 +137,9 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         int rewardsSinceUpdate = estimatedRewardsPerSecond *
             int(block.timestamp - (submitReportUnlockTime - SUBMIT_REPORT_TIMELOCK));
         if (rewardsSinceUpdate >= 0) {
-            assets =
-                totalUnderlying +
-                uint(rewardsSinceUpdate) -
-                Withdrawal(withdrawal).totalPendingWithdraw();
+            assets = totalUnderlying + uint(rewardsSinceUpdate);
         } else {
-            assets =
-                totalUnderlying -
-                uint(-rewardsSinceUpdate) -
-                Withdrawal(withdrawal).totalPendingWithdraw();
+            assets = totalUnderlying - uint(-rewardsSinceUpdate);
         }
     }
 
@@ -257,7 +251,8 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         uint256 diff = balanceIncremented
             ? newTotalUnderlying - currentTotalUnderlying
             : currentTotalUnderlying - newTotalUnderlying;
-        uint256 maxAcceptableUnderlyingchange = currentTotalUnderlying / acceptableUnderlyingChange;
+        uint256 maxAcceptableUnderlyingchange = (currentTotalUnderlying *
+            acceptableUnderlyingChange) / 10000;
         if (diff > maxAcceptableUnderlyingchange)
             revert UpdateTooBig(
                 currentTotalUnderlying,
@@ -348,9 +343,8 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         return _shares;
     }
 
+    // TODO: Delete this function and move call to withdrawal
     function completeWithdraw() external {
-        (uint256 amount, ) = Withdrawal(withdrawal).pendingWithdraws(msg.sender);
-        totalUnderlying -= amount;
         Withdrawal(withdrawal).completeWithdraw(msg.sender);
     }
 
@@ -431,6 +425,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
             _spendAllowance(owner, caller, shares);
         }
         _burn(owner, shares);
+        totalUnderlying -= assets;
         Withdrawal(withdrawal).requestWithdraw(assets, msg.sender);
 
         emit Withdraw(caller, receiver, owner, assets, shares);
