@@ -142,7 +142,7 @@ describe("Staking", () => {
 
   describe("Activate validator", () => {
     it("Push more than owned balance must revert", async () => {
-      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(toEthers(0))
+      expect(await staking.totalUnderlying()).to.eq(toEthers(0))
       await expect(
         staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
       ).to.be.revertedWithCustomError(staking, "NotEnoughETHtoStake")
@@ -160,7 +160,7 @@ describe("Staking", () => {
     it("Push 32 ETH", async () => {
       await staking.depositETH(owner.address, { value: toEthers(32) })
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
-      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(toEthers(32))
+      expect(await staking.totalUnderlying()).to.eq(toEthers(32))
       expect(await staking.totalNodesActivated()).to.eq(1)
       // Check: stakingBalance, totalAssets, mpETHPrice
     })
@@ -171,11 +171,11 @@ describe("Staking", () => {
       await liquidUnstakePool.depositETH(owner.address, { value })
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value)
       expect(await liquidUnstakePool.ethBalance()).to.eq(value)
-      expect(await staking.stakingBalance()).to.eq(value)
+      expect(await staking.totalUnderlying()).to.eq(value)
       await staking.connect(activator).pushToBeacon([getNextValidator()], value.div(2), 0)
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value.div(2))
       expect(await liquidUnstakePool.ethBalance()).to.eq(value.div(2))
-      expect(await staking.stakingBalance()).to.eq(value.div(2))
+      expect(await staking.totalUnderlying()).to.eq(value.add(value.div(2)))
       expect(await staking.totalNodesActivated()).to.eq(1)
       // Check: stakingBalance / 2, totalAssets, mpETHPrice
     })
@@ -197,23 +197,29 @@ describe("Staking", () => {
       await liquidUnstakePool.depositETH(owner.address, { value })
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value)
       expect(await liquidUnstakePool.ethBalance()).to.eq(value)
-      const stakingBalanceBefore = await staking.stakingBalance()
+      const stakingBalanceBefore = await staking.totalUnderlying()
       await staking.connect(activator).pushToBeacon([getNextValidator()], toEthers(32), 0)
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value.div(2))
       expect(await liquidUnstakePool.ethBalance()).to.eq(value.div(2))
-      expect(await staking.stakingBalance()).to.eq(stakingBalanceBefore)
+      expect(await staking.totalUnderlying()).to.eq(stakingBalanceBefore.add(toEthers(32)))
       expect(await staking.totalNodesActivated()).to.eq(1)
     })
 
     // TODO: Test push with withdrawal
   })
 
-  describe("Update nodes balance", () => {
+  describe("Report epochs results", () => {
     const depositValue = BigNumber.from(toEthers(64)),
       newNodes = parseInt(depositValue.div(toEthers(32)).toString()),
       nodesBalance = BigNumber.from(newNodes).mul(toEthers(32)),
       onePercent = BigNumber.from(nodesBalance).mul(100).div(10000),
-      newNodesBalance = nodesBalance.add(onePercent)
+      newNodesBalance = nodesBalance.add(onePercent),
+      defaultReport = {
+        from: 0,
+        to: 1,
+        rewards: onePercent,
+        penalties: 0,
+      }
 
     it("Revert without permissions", async () => {
       const UPDATER_ROLE = await staking.UPDATER_ROLE()
@@ -223,8 +229,8 @@ describe("Staking", () => {
         0,
         0
       )
-      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(nodesBalance)
-      await expect(staking.updateNodesBalance(newNodesBalance, 0)).to.be.revertedWith(
+      expect(await staking.totalUnderlying()).to.eq(nodesBalance)
+      await expect(staking.reportEpochs(defaultReport, 0)).to.be.revertedWith(
         `AccessControl: account ${owner.address.toLowerCase()} is missing role ${UPDATER_ROLE}`
       )
     })
@@ -236,20 +242,22 @@ describe("Staking", () => {
         0,
         0
       )
-      await staking.connect(updater).updateNodesBalance(nodesBalance, 0)
+      await staking.connect(updater).reportEpochs(defaultReport, 0)
       await expect(
-        staking.connect(updater).updateNodesBalance(newNodesBalance, 0)
-      ).to.be.revertedWithCustomError(staking, "UpdateBalanceTimestampNotReached")
+        staking.connect(updater).reportEpochs(defaultReport, 0)
+      ).to.be.revertedWithCustomError(staking, "SubmitReportTimelocked")
     })
 
-    it("Revert with more than 1%", async () => {
+    it("Revert with rewards + penalties more than 1%", async () => {
       await staking.connect(owner).depositETH(owner.address, { value: depositValue })
       await staking.connect(activator).pushToBeacon(
         [...Array(newNodes).keys()].map((_) => getNextValidator()),
         0,
         0
       )
-      await expect(staking.connect(updater).updateNodesBalance(newNodesBalance.add(1), 0))
+      const invalidRewardsReport = { ...defaultReport }
+      invalidRewardsReport.rewards = onePercent.add(1)
+      await expect(staking.connect(updater).reportEpochs(invalidRewardsReport, 0))
         .to.be.revertedWithCustomError(staking, "UpdateTooBig")
         .withArgs(
           nodesBalance,
@@ -259,38 +267,7 @@ describe("Staking", () => {
         )
     })
 
-    it("Update with balance plus 0.1%", async () => {
-      await staking.connect(owner).depositETH(owner.address, { value: depositValue })
-      await staking.connect(activator).pushToBeacon(
-        [...Array(newNodes).keys()].map((_) => getNextValidator()),
-        0,
-        0
-      )
-      await staking.connect(updater).updateNodesBalance(newNodesBalance, 0)
-      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(newNodesBalance)
-      expect(await staking.totalAssets()).to.eq(newNodesBalance)
-      // TODO: Check mpETHPrice
-    })
-
-    it("Update nodes balance to same amount", async () => {
-      await staking.connect(owner).depositETH(owner.address, { value: depositValue })
-      await staking.connect(activator).pushToBeacon(
-        [...Array(newNodes).keys()].map((_) => getNextValidator()),
-        0,
-        0
-      )
-      await staking.connect(updater).updateNodesBalance(nodesBalance, 0)
-      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(nodesBalance)
-      expect(await staking.totalAssets()).to.eq(depositValue)
-      expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1))
-      await time.increaseTo(await staking.nodesBalanceUnlockTime())
-      await staking.connect(updater).updateNodesBalance(nodesBalance, 0)
-      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(nodesBalance)
-      expect(await staking.totalAssets()).to.eq(depositValue)
-      expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1))
-    })
-
-    it("Update nodes balance and mint mpETH for treasury", async () => {
+    it("Report with rewards as 1% of totalUnderlying and mint mpETH for treasury", async () => {
       await staking.connect(owner).depositETH(owner.address, { value: depositValue })
       await staking.connect(activator).pushToBeacon(
         [...Array(newNodes).keys()].map((_) => getNextValidator()),
@@ -299,18 +276,40 @@ describe("Staking", () => {
       )
       const stakingFee = await staking.rewardsFee()
       const expectedFee = onePercent.mul(stakingFee).div(10000)
-      await staking.connect(updater).updateNodesBalance(newNodesBalance, 0)
+      await staking.connect(updater).reportEpochs(defaultReport, 0)
       expect(await staking.balanceOf(treasury.address)).to.eq(expectedFee)
-      expect(await staking.nodesAndWithdrawalTotalBalance()).to.eq(newNodesBalance)
-      expect(await staking.totalAssets()).to.eq(depositValue.add(onePercent))
+      expect(await staking.totalUnderlying()).to.eq(newNodesBalance)
+      expect(await staking.totalAssets()).to.eq(newNodesBalance)
       // Check: mpETHPrice, estimatedRewardsPerSecond
+    })
+
+    it("Report rewards and penalties as zero", async () => {
+      await staking.connect(owner).depositETH(owner.address, { value: depositValue })
+      await staking.connect(activator).pushToBeacon(
+        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        0,
+        0
+      )
+      const reportEmptyRewards = { ...defaultReport }
+      reportEmptyRewards.rewards = BigNumber.from(0)
+      await staking.connect(updater).reportEpochs(reportEmptyRewards, 0)
+      expect(await staking.totalUnderlying()).to.eq(nodesBalance)
+      expect(await staking.totalAssets()).to.eq(depositValue)
+      expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1))
+      await time.increaseTo(await staking.submitReportUnlockTime())
+      reportEmptyRewards.from = reportEmptyRewards.to + 1
+      reportEmptyRewards.to = reportEmptyRewards.from + 1
+      await staking.connect(updater).reportEpochs(reportEmptyRewards, 0)
+      expect(await staking.totalUnderlying()).to.eq(nodesBalance)
+      expect(await staking.totalAssets()).to.eq(depositValue)
+      expect(await staking.convertToAssets(toEthers(1))).to.eq(toEthers(1))
     })
 
     it("Nodes balance grows by estimatedRewardsPerSecond as expected", async () => {
       const [stakingBalance, nodesAndWithdrawalTotalBalance, estimatedRewardsPerSecond] =
         await Promise.all([
-          staking.stakingBalance(),
-          staking.nodesAndWithdrawalTotalBalance(),
+          staking.totalUnderlying(),
+          staking.totalUnderlying(),
           staking.estimatedRewardsPerSecond(),
         ])
       let increaseTime = 1
