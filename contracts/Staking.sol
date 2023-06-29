@@ -127,8 +127,11 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         acceptableUnderlyingChange = 100; // 1%
     }
 
-    /// @dev Needed to receive ETH from WETH deposits
-    receive() external payable {}
+    /// @dev Needed to receive ETH from WETH deposits and Withdrawal for new validators
+    /// If sender is not WETH or Withdrawal, then assume it's an user deposit
+    receive() external payable {
+        if (msg.sender != asset() && msg.sender != withdrawal) depositETH(msg.sender);
+    }
 
     /// @notice Calculate ETH held by vault + validators + estimatedRewards
     /// @return assets Returns total ETH in the protocol
