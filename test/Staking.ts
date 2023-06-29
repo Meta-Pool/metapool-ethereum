@@ -71,6 +71,17 @@ describe("Staking", () => {
       // TODO: Check totalAssets, mpETHPrice, stakingBalance
     })
 
+    it("Deposit ETH through receive", async () => {
+      const value = toEthers(32)
+      await owner.sendTransaction({
+        to: staking.address,
+        value,
+      })
+      expect(await staking.balanceOf(owner.address)).to.eq(value)
+      expect(await provider.getBalance(staking.address)).to.eq(value)
+      // TODO: Check totalAssets, mpETHPrice, stakingBalance
+    })
+
     it("Deposit ETH with depositFee", async () => {
       const MAX_DEPOSIT_FEE = await staking.MAX_DEPOSIT_FEE()
       await staking.connect(owner).updateDepositFee(MAX_DEPOSIT_FEE)
