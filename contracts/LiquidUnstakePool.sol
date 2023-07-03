@@ -35,7 +35,13 @@ contract LiquidUnstakePool is
         uint256 amount,
         uint256 shares
     );
-    event RemoveLiquidity(address indexed user, uint256 shares, uint256 eth, uint256 mpETH);
+    event RemoveLiquidity(
+        address indexed caller,
+        address indexed owner,
+        uint256 shares,
+        uint256 eth,
+        uint256 mpETH
+    );
     event Swap(
         address indexed user,
         uint256 amountIn,
@@ -163,7 +169,7 @@ contract LiquidUnstakePool is
         ethBalance -= ETHToSend;
         IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
         payable(_receiver).sendValue(ETHToSend);
-        emit RemoveLiquidity(msg.sender, shares, ETHToSend, mpETHToSend);
+        emit RemoveLiquidity(msg.sender, _owner, shares, ETHToSend, mpETHToSend);
         emit Withdraw(msg.sender, _receiver, _owner, ETHToSend, shares);
     }
 
@@ -184,7 +190,7 @@ contract LiquidUnstakePool is
         ethBalance -= ETHToSend;
         IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
         payable(_receiver).sendValue(ETHToSend);
-        emit RemoveLiquidity(_owner, _shares, ETHToSend, mpETHToSend);
+        emit RemoveLiquidity(msg.sender, _owner, _shares, ETHToSend, mpETHToSend);
         emit Withdraw(msg.sender, _receiver, _owner, ETHToSend, _shares);
     }
 

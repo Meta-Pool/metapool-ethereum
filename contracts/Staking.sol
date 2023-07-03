@@ -341,7 +341,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     }
 
     /// @notice Deposit ETH
-    /// @dev Equivalent to deposit function but for native token. Sends assets 0 to _deposit to indicate that the assets amount will be msg.value
+    /// @dev Equivalent to deposit function but for native token
     function depositETH(address _receiver) public payable returns (uint256) {
         uint256 _shares = previewDeposit(msg.value);
         _deposit(msg.sender, _receiver, msg.value, _shares);
