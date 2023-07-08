@@ -80,11 +80,11 @@ describe("Withdrawal", function () {
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
       await expect(withdrawal.connect(user).completeWithdraw()).to.be.revertedWithCustomError(
         withdrawal,
-        "EpochNotReached"
+        "ClaimTooSoon"
       )
     })
 
-    it("Revert complete withdraw before first 48hs from unlock epoch", async () => {
+    it("Revert complete withdraw before validator disassemble time", async () => {
       await withdrawal.setWithdrawalsStartEpoch(0)
       const depositAmount = toEthers(32)
       await staking.connect(user).depositETH(user.address, { value: depositAmount })
@@ -92,10 +92,12 @@ describe("Withdrawal", function () {
       await staking.connect(user).redeem(depositAmount, user.address, user.address)
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
       await time.increase(await withdrawal.getEpochTimeLeft())
-      const epochPlusTwoDays = (await provider.getBlock("latest")).timestamp + TWO_DAYS.toNumber()
+      const validatorsDisassembleTime = await withdrawal.validatorsDisassembleTime()
+      const epochPlusDisassembleTime =
+        (await provider.getBlock("latest")).timestamp + validatorsDisassembleTime
       await expect(withdrawal.connect(user).completeWithdraw())
-        .to.be.revertedWithCustomError(withdrawal, "NewEpochDelayNotReached")
-        .withArgs(epochPlusTwoDays)
+        .to.be.revertedWithCustomError(withdrawal, "ClaimTooSoon")
+        .withArgs(epochPlusDisassembleTime)
     })
 
     it("Revert complete withdraw with insufficient balance", async () => {
@@ -105,7 +107,8 @@ describe("Withdrawal", function () {
       await staking.connect(user).approve(staking.address, depositAmount)
       await staking.connect(user).redeem(depositAmount, user.address, user.address)
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
-      await time.increase((await withdrawal.getEpochTimeLeft()).add(TWO_DAYS))
+      const validatorsDisassembleTime = await withdrawal.validatorsDisassembleTime()
+      await time.increase((await withdrawal.getEpochTimeLeft()).add(validatorsDisassembleTime))
       await expect(withdrawal.connect(user).completeWithdraw()).to.be.revertedWith(
         "Address: insufficient balance"
       )
@@ -120,7 +123,8 @@ describe("Withdrawal", function () {
       await staking.connect(user).approve(staking.address, depositAmount)
       await staking.connect(user).redeem(depositAmount, user.address, user.address)
       await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
-      await time.increase((await withdrawal.getEpochTimeLeft()).add(TWO_DAYS))
+      const validatorsDisassembleTime = await withdrawal.validatorsDisassembleTime()
+      await time.increase((await withdrawal.getEpochTimeLeft()).add(validatorsDisassembleTime))
       await owner.sendTransaction({
         to: withdrawal.address,
         value: (await withdrawal.pendingWithdraws(user.address)).amount,
@@ -188,7 +192,7 @@ describe("Withdrawal", function () {
 
       it("Revert setWithdrawalsStartEpoch with epoch > 32", async () => {
         await expect(withdrawal.connect(owner).setWithdrawalsStartEpoch(33))
-          .to.be.revertedWithCustomError(withdrawal, "StartEpochTooHigh")
+          .to.be.revertedWithCustomError(withdrawal, "InvalidConfig")
           .withArgs(33, 32)
       })
 
