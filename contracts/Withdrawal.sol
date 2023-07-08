@@ -27,6 +27,8 @@ contract Withdrawal is OwnableUpgradeable {
     uint256 public startTimestamp;
     mapping(address => withdrawRequest) public pendingWithdraws;
     uint8 public withdrawalsStartEpoch;
+    uint32 public constant MAX_VALIDATORS_DISASSEMBLE_TIME = 90 days;
+    uint32 public validatorsDisassembleTime;
 
     event RequestWithdraw(
         address indexed caller,
@@ -45,9 +47,9 @@ contract Withdrawal is OwnableUpgradeable {
     error EpochNotReached(uint256 _currentEpoch, uint256 _unlockEpoch);
     error UserDontHavePendingWithdraw(address _user);
     error NotEnoughETHtoStake(uint256 _requested, uint256 _available);
-    error StartEpochTooHigh(uint8 _startEpochSent, uint8 _maxStartEpoch);
     error WithdrawalsNotStarted(uint256 _currentEpoch, uint256 _startEpoch);
-    error NewEpochDelayNotReached(uint256 _timestampUnlock);
+    error ClaimTooSoon(uint256 timestampUnlock);
+    error InvalidConfig(uint256 valueSent, uint256 maxValue);
 
     modifier onlyStaking() {
         if (msg.sender != mpETH) revert NotAuthorized(msg.sender, mpETH);
@@ -62,6 +64,7 @@ contract Withdrawal is OwnableUpgradeable {
         startTimestamp = block.timestamp;
         mpETH = _mpETH;
         setWithdrawalsStartEpoch(8);
+        setValidatorsDisassembleTime(7 days);
     }
 
     /// @return epoch Current epoch
@@ -74,14 +77,21 @@ contract Withdrawal is OwnableUpgradeable {
         return startTimestamp + (getEpoch() + 1) * 7 days - block.timestamp;
     }
 
-    function getEpochStartedTime() public view returns (uint256) {
-        return startTimestamp + getEpoch() * 7 days;
+    function getEpochStartTime(uint256 _epoch) public view returns (uint256) {
+        return startTimestamp + _epoch * 7 days;
     }
 
     /// @notice Set first epoch for allow withdrawals
     function setWithdrawalsStartEpoch(uint8 _epoch) public onlyOwner {
-        if (_epoch > 32) revert StartEpochTooHigh(_epoch, 32);
+        if (_epoch > 32) revert InvalidConfig(_epoch, 32);
         withdrawalsStartEpoch = _epoch;
+    }
+
+    /// @notice Set estimated time for validators disassemble
+    function setValidatorsDisassembleTime(uint32 _disassembleTime) public onlyOwner {
+        if (_disassembleTime > MAX_VALIDATORS_DISASSEMBLE_TIME)
+            revert InvalidConfig(_disassembleTime, MAX_VALIDATORS_DISASSEMBLE_TIME);
+        validatorsDisassembleTime = _disassembleTime;
     }
 
     /// @notice Queue ETH withdrawal
@@ -94,9 +104,10 @@ contract Withdrawal is OwnableUpgradeable {
         address _user,
         address _receiver
     ) external onlyStaking {
-        if (getEpoch() < withdrawalsStartEpoch)
-            revert WithdrawalsNotStarted(getEpoch(), withdrawalsStartEpoch);
-        uint256 unlockEpoch = getEpoch() + 1;
+        uint256 currentEpoch = getEpoch();
+        if (currentEpoch < withdrawalsStartEpoch)
+            revert WithdrawalsNotStarted(currentEpoch, withdrawalsStartEpoch);
+        uint256 unlockEpoch = currentEpoch + 1;
         pendingWithdraws[_user].amount += _amountOut;
         pendingWithdraws[_user].unlockEpoch = unlockEpoch;
         pendingWithdraws[_user].receiver = _receiver;
@@ -106,22 +117,23 @@ contract Withdrawal is OwnableUpgradeable {
 
     /// @notice Process pending withdrawal if there's enough ETH
     function completeWithdraw() external {
-        address user = msg.sender;
-        withdrawRequest memory _withdrawR = pendingWithdraws[user];
-        if (_withdrawR.amount == 0) revert UserDontHavePendingWithdraw(user);
-        uint256 currentEpoch = getEpoch();
-        if (currentEpoch < _withdrawR.unlockEpoch) {
-            revert EpochNotReached(getEpoch(), _withdrawR.unlockEpoch);
-        } else if (currentEpoch == _withdrawR.unlockEpoch) {
-            uint256 epochPlusTwoDays = getEpochStartedTime() + 2 days;
-            if (block.timestamp < epochPlusTwoDays)
-                revert NewEpochDelayNotReached(epochPlusTwoDays);
-        }
-        if(_withdrawR.receiver == address(0)) _withdrawR.receiver = user;
+        withdrawRequest memory _withdrawR = pendingWithdraws[msg.sender];
+
+        if (_withdrawR.amount == 0) revert UserDontHavePendingWithdraw(msg.sender);
+
+        uint256 unlockTime = getEpochStartTime(_withdrawR.unlockEpoch) + validatorsDisassembleTime;
+        if (block.timestamp < unlockTime) revert ClaimTooSoon(unlockTime);
+
+        if (_withdrawR.receiver == address(0)) _withdrawR.receiver = msg.sender;
         totalPendingWithdraw -= _withdrawR.amount;
-        delete pendingWithdraws[user];
+        delete pendingWithdraws[msg.sender];
         payable(_withdrawR.receiver).sendValue(_withdrawR.amount);
-        emit CompleteWithdraw(user, _withdrawR.amount, _withdrawR.receiver, _withdrawR.unlockEpoch);
+        emit CompleteWithdraw(
+            msg.sender,
+            _withdrawR.amount,
+            _withdrawR.receiver,
+            _withdrawR.unlockEpoch
+        );
     }
 
     /// @notice Send ETH _amount to Staking
