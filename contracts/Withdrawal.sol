@@ -10,6 +10,7 @@ import "./Staking.sol";
 struct withdrawRequest {
     uint256 amount;
     uint256 unlockEpoch;
+    address receiver;
 }
 
 /// @title Manage withdrawals from validators to users
@@ -27,8 +28,18 @@ contract Withdrawal is OwnableUpgradeable {
     mapping(address => withdrawRequest) public pendingWithdraws;
     uint8 public withdrawalsStartEpoch;
 
-    event RequestWithdraw(address indexed user, uint256 amount, uint256 unlockEpoch);
-    event CompleteWithdraw(address indexed user, uint256 amount, uint256 unlockEpoch);
+    event RequestWithdraw(
+        address indexed caller,
+        uint256 amount,
+        address receiver,
+        uint256 unlockEpoch
+    );
+    event CompleteWithdraw(
+        address indexed caller,
+        uint256 amount,
+        address receiver,
+        uint256 unlockEpoch
+    );
 
     error NotAuthorized(address _caller, address _authorized);
     error EpochNotReached(uint256 _currentEpoch, uint256 _unlockEpoch);
@@ -78,20 +89,26 @@ contract Withdrawal is OwnableUpgradeable {
     /// Shares used for this request should be already bruned in the calling function (Staking._withdraw)
     /// @param _amountOut ETH amount to withdraw
     /// @param _user Owner of the withdrawal
-    function requestWithdraw(uint256 _amountOut, address _user) external onlyStaking {
+    function requestWithdraw(
+        uint256 _amountOut,
+        address _user,
+        address _receiver
+    ) external onlyStaking {
         if (getEpoch() < withdrawalsStartEpoch)
             revert WithdrawalsNotStarted(getEpoch(), withdrawalsStartEpoch);
         uint256 unlockEpoch = getEpoch() + 1;
         pendingWithdraws[_user].amount += _amountOut;
         pendingWithdraws[_user].unlockEpoch = unlockEpoch;
+        pendingWithdraws[_user].receiver = _receiver;
         totalPendingWithdraw += _amountOut;
-        emit RequestWithdraw(_user, _amountOut, unlockEpoch);
+        emit RequestWithdraw(_user, _amountOut, _receiver, unlockEpoch);
     }
 
     /// @notice Process pending withdrawal if there's enough ETH
     function completeWithdraw() external {
         address user = msg.sender;
         withdrawRequest memory _withdrawR = pendingWithdraws[user];
+        if (_withdrawR.amount == 0) revert UserDontHavePendingWithdraw(user);
         uint256 currentEpoch = getEpoch();
         if (currentEpoch < _withdrawR.unlockEpoch) {
             revert EpochNotReached(getEpoch(), _withdrawR.unlockEpoch);
@@ -100,11 +117,11 @@ contract Withdrawal is OwnableUpgradeable {
             if (block.timestamp < epochPlusTwoDays)
                 revert NewEpochDelayNotReached(epochPlusTwoDays);
         }
-        if (_withdrawR.amount == 0) revert UserDontHavePendingWithdraw(user);
+        if(_withdrawR.receiver == address(0)) _withdrawR.receiver = user;
         totalPendingWithdraw -= _withdrawR.amount;
         delete pendingWithdraws[user];
-        payable(user).sendValue(_withdrawR.amount);
-        emit CompleteWithdraw(user, _withdrawR.amount, _withdrawR.unlockEpoch);
+        payable(_withdrawR.receiver).sendValue(_withdrawR.amount);
+        emit CompleteWithdraw(user, _withdrawR.amount, _withdrawR.receiver, _withdrawR.unlockEpoch);
     }
 
     /// @notice Send ETH _amount to Staking

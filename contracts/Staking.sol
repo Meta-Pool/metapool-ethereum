@@ -68,8 +68,8 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     event ReportEpochs(EpochsReport report, uint256 newTotalUnderlying);
 
     error UpdateTooBig(
-        uint256 _currentNodesBalance,
-        uint256 _newSubmittedNodesBalance,
+        uint256 _currentTotalAssets,
+        uint256 _newTotalUnderlying,
         uint256 _difference,
         uint256 _maxDifference
     );
@@ -204,7 +204,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     function updateEstimatedRewardsPerSecond(
         int _estimatedRewardsPerSecond
     ) public onlyRole(UPDATER_ROLE) {
-        uint256 maxEstimatedRewardsPerSecond = totalAssets() / 10000000; // 0,00001%
+        uint256 maxEstimatedRewardsPerSecond = totalAssets() / 30000000; // 0,00003%
         if (
             _estimatedRewardsPerSecond > int(maxEstimatedRewardsPerSecond) ||
             _estimatedRewardsPerSecond < -int(maxEstimatedRewardsPerSecond)
@@ -254,15 +254,9 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         uint256 diff = balanceIncremented
             ? newTotalUnderlying - currentTotalUnderlying
             : currentTotalUnderlying - newTotalUnderlying;
-        uint256 maxAcceptableUnderlyingChangeAmount = (currentTotalUnderlying *
-            acceptableUnderlyingChange) / 10000;
-        if (diff > maxAcceptableUnderlyingChangeAmount)
-            revert UpdateTooBig(
-                currentTotalUnderlying,
-                newTotalUnderlying,
-                diff,
-                maxAcceptableUnderlyingChangeAmount
-            );
+
+        uint256 maxDiff = (totalAssets() * acceptableUnderlyingChange) / 10000;
+        if (diff > maxDiff) revert UpdateTooBig(totalAssets(), newTotalUnderlying, diff, maxDiff);
 
         // If the balance didn't increase there's no reward to get fees
         if (balanceIncremented) {
@@ -412,7 +406,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         }
         _burn(owner, shares);
         totalUnderlying -= assets;
-        Withdrawal(withdrawal).requestWithdraw(assets, msg.sender);
+        Withdrawal(withdrawal).requestWithdraw(assets, caller, receiver);
 
         emit Withdraw(caller, receiver, owner, assets, shares);
     }
