@@ -46,6 +46,7 @@ Diagrams figures
 Note: 
 - All commands also compile the contracts
 - Replace `goerli` for your target network. Must be on `hardhat.config.ts`
+- If the deployer never deployed a proxy with hardhat upgradable for the given network, must delete `deploys.json`
 #### Compile contracts
 `npm run compile`
 

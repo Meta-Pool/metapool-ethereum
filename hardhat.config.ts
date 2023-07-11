@@ -27,6 +27,10 @@ const config: HardhatUserConfig = {
       url: String(process.env.RPC_ENDPOINT),
       accounts: [String(process.env.PRIVATE_KEY)],
     },
+    ethereum: {
+      url: String(process.env.RPC_ENDPOINT),
+      accounts: [String(process.env.PRIVATE_KEY)],
+    },
   },
   gasReporter: {
     enabled: JSON.parse(process.env.REPORT_GAS || "false"),

@@ -1,10 +1,10 @@
 {
   "goerli": {
     "StakingProxy": "0x748c905130CC15b92B97084Fd1eEBc2d2419146f",
-    "StakingImpl": "0x63e4cE848227873a2fCd889705f5C8dc29aCfd9C",
+    "StakingImpl": "0xC900EbFA0382e414d976886b51c738beD355A53d",
     "WithdrawalProxy": "0x1A8c25ADc96Fb62183C4CB5B9F0c47746B847e05",
-    "WithdrawalImpl": "0x1D73f676d1a4243a7D78488795E526b083c7535F",
+    "WithdrawalImpl": "0xEDc331722AF9FC243D71ade86cD1CdcC94855344",
     "LiquidUnstakePoolProxy": "0x37774000C885e9355eA7C6B025EbF1704141093C",
-    "LiquidUnstakePoolImpl": "0xD96bd3e009bC60e13B7e4b675088810AC577C363"
+    "LiquidUnstakePoolImpl": "0xEEd0223a366f2B227c72cc2f4d6B509B93a774D3"
   }
 }
