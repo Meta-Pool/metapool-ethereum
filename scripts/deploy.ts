@@ -1,13 +1,11 @@
 import { ethers } from "hardhat"
-import { NETWORK, BOT_ADDRESS } from "../lib/env"
 import { getImplementationAddress } from "@openzeppelin/upgrades-core"
-import fs from "fs"
 import { deployProtocol } from "../lib/deploy"
+import { updateDeployedAddresses } from "../lib/utils"
+const { NETWORK, BOT_ADDRESS } = require("../lib/env")
+const { DEPLOYED_ADDRESSES } = require(`../lib/constants/common`)
 
-const deployFiles = "deploys.json"
 async function main() {
-  const deploys = JSON.parse(fs.readFileSync(deployFiles).toString())
-  if (!deploys[NETWORK]) deploys[NETWORK] = {}
   const [deployer] = await ethers.getSigners()
   console.log("Deploying the contracts with the account:", await deployer.getAddress())
 
@@ -27,20 +25,20 @@ async function main() {
 
   console.log(`Staking deployed to ${staking.address}`)
   console.log(`with implementation ${stakingImplAddress}`)
-  deploys[NETWORK].StakingProxy = staking.address
-  deploys[NETWORK].StakingImpl = stakingImplAddress
+  DEPLOYED_ADDRESSES.StakingProxy = staking.address
+  DEPLOYED_ADDRESSES.StakingImpl = stakingImplAddress
 
   console.log(`LiquidUnstakePool deployed to ${liquidUnstakePool.address}`)
   console.log(`with implementation ${liquidUnstakePoolImplAddress}`)
-  deploys[NETWORK].LiquidUnstakePoolProxy = liquidUnstakePool.address
-  deploys[NETWORK].LiquidUnstakePoolImpl = liquidUnstakePoolImplAddress
+  DEPLOYED_ADDRESSES.LiquidUnstakePoolProxy = liquidUnstakePool.address
+  DEPLOYED_ADDRESSES.LiquidUnstakePoolImpl = liquidUnstakePoolImplAddress
 
   console.log(`Withdrawal deployed to ${withdrawal.address}`)
   console.log(`with implementation ${withdrawalImplAddress}`)
-  deploys[NETWORK].WithdrawalProxy = withdrawal.address
-  deploys[NETWORK].WithdrawalImpl = withdrawalImplAddress
+  DEPLOYED_ADDRESSES.WithdrawalProxy = withdrawal.address
+  DEPLOYED_ADDRESSES.WithdrawalImpl = withdrawalImplAddress
 
-  if (NETWORK !== "hardhat") fs.writeFileSync(deployFiles, JSON.stringify(deploys, null, 2))
+  updateDeployedAddresses(DEPLOYED_ADDRESSES, NETWORK)
 }
 
 main().catch((error) => {

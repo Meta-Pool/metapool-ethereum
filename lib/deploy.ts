@@ -1,15 +1,19 @@
 import { ethers, upgrades } from "hardhat"
 import { getContractAddress } from "ethers/lib/utils"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
-import { AddressType } from "typechain"
-import { NETWORK } from "../lib/env"
-const { DEPOSIT_CONTRACT_ADDRESS, ADDRESSES, NATIVE } = require(`../lib/constants/${NETWORK}`)
+
+const {
+  DEPOSIT_CONTRACT_ADDRESS,
+  ADDRESSES,
+  NATIVE,
+  DEPLOYED_ADDRESSES,
+} = require(`../lib/constants/common`)
 
 const deployProtocol = async (
   deployer: SignerWithAddress,
-  updater: AddressType,
-  activator: AddressType,
-  treasury: AddressType
+  updater: string,
+  activator: string,
+  treasury: string
 ) => {
   const [Staking, LiquidUnstakePool, Withdrawal, deployerNonce] = await Promise.all([
     ethers.getContractFactory("Staking"),
@@ -18,13 +22,17 @@ const deployProtocol = async (
     ethers.provider.getTransactionCount(deployer.address),
   ])
 
+  // First time deploying a proxy, nonce are 4 and 6
+  // Not first time. 2 and 4
+  const [nonceToLiquidPool, nonceToWithdrawal] = DEPLOYED_ADDRESSES ? [2, 4] : [4, 6]
+
   const expectedLiquidPoolAddress = getContractAddress({
     from: deployer.address,
-    nonce: deployerNonce + 3,
+    nonce: deployerNonce + nonceToLiquidPool,
   })
   const expectedWithdrawalAddress = getContractAddress({
     from: deployer.address,
-    nonce: deployerNonce + 5,
+    nonce: deployerNonce + nonceToWithdrawal,
   })
 
   const staking = await upgrades.deployProxy(

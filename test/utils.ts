@@ -1,8 +1,6 @@
 import { ethers } from "hardhat"
-import { NETWORK } from "../lib/env"
 import { deployProtocol } from "../lib/deploy"
-import * as depositData from "../test_deposit_data.json"
-const { ADDRESSES, WETH_ABI, NATIVE } = require(`../lib/constants/${NETWORK}`)
+const { ADDRESSES, WETH_ABI, NATIVE, DEPOSIT_DATA } = require(`../lib/constants/common`)
 
 const getNextValidator = () =>
   Object.values(
@@ -11,7 +9,7 @@ const getNextValidator = () =>
       withdrawal_credentials,
       signature,
       deposit_data_root,
-    }))(depositData.default.pop())
+    }))(DEPOSIT_DATA.pop())
   )
 
 async function deployTest() {

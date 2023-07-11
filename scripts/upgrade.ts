@@ -1,26 +1,27 @@
 import { ethers, upgrades } from "hardhat"
 import { getImplementationAddress } from "@openzeppelin/upgrades-core"
-import fs from "fs"
-import { NETWORK } from "../lib/env"
+import { updateDeployedAddresses } from "../lib/utils"
+const { DEPLOYED_ADDRESSES } = require(`../lib/constants/common`)
+const { NETWORK, TARGET } = require("../lib/env")
 
 async function main() {
-  const contractName = process.env.TARGET ? process.env.TARGET : ""
-  if (contractName === "") throw new Error("Provide a contractName")
-  const deploys = JSON.parse(fs.readFileSync("deploys.json").toString())
-  const proxyName = `${contractName}Proxy`
-  const implName = `${contractName}Impl`
-  const implementation = await ethers.getContractFactory(contractName)
-  const contractAddress = deploys[NETWORK][proxyName]
-  const oldImplAddress = deploys[NETWORK][implName]
-  console.log(`Upgrading ${contractName} at ${contractAddress}`)
-  const upgrade = await upgrades.upgradeProxy(contractAddress, implementation)
+  if (TARGET === "") throw new Error("Provide a TARGET")
+
+  const proxyName = `${TARGET}Proxy`,
+    implName = `${TARGET}Impl`,
+    implementation = await ethers.getContractFactory(TARGET),
+    contractAddress = DEPLOYED_ADDRESSES[proxyName],
+    oldImplAddress = DEPLOYED_ADDRESSES[implName],
+    upgrade = await upgrades.upgradeProxy(contractAddress, implementation)
+
+  console.log(`Upgrading ${TARGET} at ${contractAddress}`)
   await upgrade.deployed()
   const newImplAddress = await getImplementationAddress(ethers.provider, upgrade.address)
   console.log(`Upgraded implementation`)
   console.log(`from ${oldImplAddress}`)
   console.log(`to ${newImplAddress}`)
-  deploys[NETWORK][implName] = newImplAddress
-  fs.writeFileSync("deploys.json", JSON.stringify(deploys, null, 2))
+  DEPLOYED_ADDRESSES[implName] = newImplAddress
+  updateDeployedAddresses(DEPLOYED_ADDRESSES, NETWORK)
 }
 
 main().catch((error) => {

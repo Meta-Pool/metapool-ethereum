@@ -1,7 +1,7 @@
 import hre from "hardhat"
-import fs from "fs"
 import axios from "axios"
-import { NETWORK, ETHERSCAN_API_KEY } from "../lib/env"
+const { ETHERSCAN_API_KEY } = require("../lib/env")
+const { DEPLOYED_ADDRESSES } = require(`../lib/constants/common`)
 
 type contractToVerify = {
   name: string
@@ -9,12 +9,11 @@ type contractToVerify = {
 }
 
 async function main() {
-  const deploys = JSON.parse(fs.readFileSync("deploys.json").toString())
   let contracts: contractToVerify[] = []
-  for (const contractName in deploys[NETWORK]) {
+  for (const contractName in DEPLOYED_ADDRESSES) {
     contracts.push({
       name: contractName,
-      address: deploys[NETWORK][contractName],
+      address: DEPLOYED_ADDRESSES[contractName],
     })
   }
 
@@ -45,7 +44,10 @@ const verifyContract = async (contract: contractToVerify) => {
       address: contract.address,
       constructorArguments: [],
     })
-  } catch (e) {}
+  } catch (e) {
+    console.error(`Error verifying ${contract.name} at ${contract.address}`)
+    console.error(e)
+  }
 }
 
 main().catch((error) => {
