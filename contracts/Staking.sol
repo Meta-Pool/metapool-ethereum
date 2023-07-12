@@ -12,6 +12,7 @@ import "./interfaces/IDeposit.sol";
 import "./interfaces/IWETH.sol";
 import "./LiquidUnstakePool.sol";
 import "./Withdrawal.sol";
+import "hardhat/console.sol";
 
 /// @title ETH staking manager and mpETH staking token
 /// @author MetaPool
@@ -23,7 +24,6 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
 
     struct Node {
         bytes pubkey;
-        bytes withdrawCredentials;
         bytes signature;
         bytes32 depositDataRoot;
     }
@@ -61,6 +61,8 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     uint16 public acceptableUnderlyingChange;
     uint16 public constant MAX_ACCEPTABLE_UNDERLYING_CHANGE = 200; // 2%
     uint64 public lastEpochReported;
+
+    bytes public withdrawalCredential;
 
     event Mint(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
     event Stake(uint256 nodeId, bytes indexed pubkey);
@@ -166,6 +168,8 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     /// @dev Admin function
     function updateWithdrawal(address payable _withdrawal) public onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_withdrawal == address(0)) revert ZeroAddress("withdrawal");
+        bytes memory prefix = hex"010000000000000000000000";
+        withdrawalCredential = abi.encodePacked(prefix, bytes20(address(_withdrawal)));
         withdrawal = _withdrawal;
     }
 
@@ -297,13 +301,13 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
             Withdrawal(withdrawal).getEthForValidator(_requestWithdrawalAmount);
 
         uint32 _totalNodesActivated = totalNodesActivated;
-
+        bytes memory _withdrawalCredential = withdrawalCredential;
         for (uint256 i = 0; i != nodesLength; ++i) {
             if (nodePubkeyUsed[_nodes[i].pubkey]) revert NodeAlreadyUsed(_nodes[i].pubkey);
             nodePubkeyUsed[_nodes[i].pubkey] = true;
             depositContract.deposit{value: 32 ether}(
                 _nodes[i].pubkey,
-                _nodes[i].withdrawCredentials,
+                _withdrawalCredential,
                 _nodes[i].signature,
                 _nodes[i].depositDataRoot
             );
