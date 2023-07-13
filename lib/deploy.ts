@@ -9,6 +9,8 @@ const deployProtocol = async (
   activator: string,
   treasury: string
 ) => {
+  updater = updater || deployer.address
+  activator = activator || deployer.address
   const [Staking, LiquidUnstakePool, Withdrawal, deployerNonce] = await Promise.all([
     ethers.getContractFactory("Staking"),
     ethers.getContractFactory("LiquidUnstakePool"),

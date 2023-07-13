@@ -28,41 +28,45 @@ Also users can provide liquidity with ETH or WETH. This ETH will be slowly conve
 Manage the delayed mpETH redeem of users. Send ETH from rewards and validators disassemble to users.
 Users request the withdraw in the Staking contract and, one epoch later (one week) complete the withdraw on this contract.
 
-## Contracts functions relations
+## Setup .env files
+This project use multiple .env files
+- `.env` for common variables to all network
+- `.env.<network>` for network specific variables
 
-Diagrams with the main functions and most significant relations between contracts.
+For testing with hardhat generated accounts, the `.env` only requires:
+```
+NETWORK="Network used for all commands"
+```
+If NETWORK is not set, hardhat will try to use the `goerli` network.
 
-Diagrams figures
+For production you will need extra variables. Check `.env.sample` for a list of all variables 
 
-![diagrams figures](https://github.com/Meta-Pool/metapool-ethereum/blob/main/diagrams/figures.png?raw=true)
-
-![staking diagram](https://github.com/Meta-Pool/metapool-ethereum/blob/main/diagrams/staking.png?raw=true)
-
-![liquidUnstakePool diagram](https://github.com/Meta-Pool/metapool-ethereum/blob/main/diagrams/liquidUnstakePool.png?raw=true)
-
-![withdrawal diagram](https://github.com/Meta-Pool/metapool-ethereum/blob/main/diagrams/withdrawal.png?raw=true)
+Above this, each network requires a `.env.<network>` file with the following variables:
+```
+RPC_ENDPOINT="RPC endpoint URL"
+BLOCK_NUMBER="Block number to fork"
+```
 
 ## Commands
 Note: 
 - All commands also compile the contracts
-- Replace `goerli` for your target network. Must be on `hardhat.config.ts`
-- If the deployer never deployed a proxy with hardhat upgradable for the given network, must delete `deploys.json`
-#### Compile contracts
+- All commands will use the `NETWORK` variable from `.env`
+### Compile contracts
 `npm run compile`
 
-#### Run tests
+### Run tests
 `npm test`
 
-#### Deploy
-`npm run deploy goerli`
+### Deploy
+`npm run deploy`
 
-#### Verify contracts
-`npm run verify goerli`
+### Verify contracts
+`npm run verify`
 
-#### Upgrade implementations
-`TARGET=Staking npm run upgrade goerli`
+### Upgrade implementations
+`TARGET=Staking npm run upgrade`
 
-#### Transfer proxies admin to multisig
-`npm run transfer_to_multisig goerli`
+### Transfer proxies admin to multisig
+`npm run transfer_to_multisig`
 
 This only transfer the admin permission to upgrade the contracts implementations, not the `ADMIN_ROLE`

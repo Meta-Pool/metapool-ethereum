@@ -1,12 +1,12 @@
 {
   "scripts": {
     "compile": "clear && npx hardhat compile",
-    "deploy": "clear && npx hardhat compile && npx hardhat run scripts/deploy.ts --network $NETWORK",
-    "test": "clear && npx hardhat compile && npx hardhat test test/**.ts",
-    "verify": "clear && npx hardhat run scripts/verify.ts --network $NETWORK",
-    "upgrade": "clear && npx hardhat compile && npx hardhat run scripts/upgrade.ts --network $NETWORK",
-    "transfer_to_multisig": "clear && npx hardhat compile && npx hardhat run scripts/transfer_proxy_admin.ts --network $NETWORK",
-    "prepare_upgrade": "clear && npx hardhat compile && npx hardhat run scripts/prepare_upgrade.ts --network $NETWORK"
+    "deploy": "clear && npx hardhat compile && npx hardhat run scripts/deploy.ts",
+    "test": "clear && npx hardhat compile && npx hardhat test test/**.ts --network hardhat",
+    "verify": "clear && npx hardhat run scripts/verify.ts",
+    "upgrade": "clear && npx hardhat compile && npx hardhat run scripts/upgrade.ts",
+    "transfer_to_multisig": "clear && npx hardhat compile && npx hardhat run scripts/transfer_proxy_admin.ts",
+    "prepare_upgrade": "clear && npx hardhat compile && npx hardhat run scripts/prepare_upgrade.ts"
   },
   "dependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.5",
@@ -21,9 +21,10 @@
     "@typechain/hardhat": "^6.1.5",
     "axios": "^1.4.0",
     "chai": "^4.3.7",
-    "dotenv": "^16.0.3",
+    "dotenv": "^16.3.1",
     "ethers": "^5.7.2",
     "hardhat": "^2.12.7",
+    "hardhat-deploy": "^0.11.34",
     "hardhat-gas-reporter": "^1.0.9",
     "solidity-coverage": "^0.8.2",
     "typechain": "^8.1.1"

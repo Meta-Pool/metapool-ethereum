@@ -2,8 +2,15 @@ import "@openzeppelin/hardhat-upgrades"
 import "@nomicfoundation/hardhat-toolbox"
 import "@openzeppelin/hardhat-defender"
 import "hardhat-gas-reporter"
-
-require("dotenv").config()
+const {
+  RPC_ENDPOINT,
+  BLOCK_NUMBER,
+  MNEMONIC,
+  ETHERSCAN_API_KEY,
+  DEFENDER_API_KEY,
+  DEFENDER_SECRET_KEY,
+  REPORT_GAS,
+} = require("./lib/env")
 
 module.exports = {
   solidity: {
@@ -18,28 +25,25 @@ module.exports = {
   networks: {
     hardhat: {
       forking: {
-        url: String(process.env.RPC_ENDPOINT),
-        blockNumber: Number(process.env.BLOCK_NUMBER),
+        url: String(RPC_ENDPOINT),
+        blockNumber: Number(BLOCK_NUMBER),
         enabled: true,
       },
-    },
-    goerli: {
-      url: String(process.env.RPC_ENDPOINT),
-      accounts: [String(process.env.PRIVATE_KEY)],
-    },
-    ethereum: {
-      url: String(process.env.RPC_ENDPOINT),
-      accounts: [String(process.env.PRIVATE_KEY)],
+      // Uncomment this to use your own mnemonic. Make sure to keep it secret!
+      // accounts: {
+      //   mnemonic: MNEMONIC,
+      // },
     },
   },
   gasReporter: {
-    enabled: JSON.parse(process.env.REPORT_GAS || "false"),
+    enabled: REPORT_GAS,
   },
   etherscan: {
-    apiKey: String(process.env.API_KEY),
+    apiKey: String(ETHERSCAN_API_KEY),
   },
   defender: {
-    apiKey: process.env.DEFENDER_API_KEY,
-    apiSecret: process.env.DEFENDER_SECRET_KEY,
+    apiKey: DEFENDER_API_KEY,
+    apiSecret: DEFENDER_SECRET_KEY,
   },
+  plugins: ["hardhat-deploy"],
 }
