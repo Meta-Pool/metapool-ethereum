@@ -1,5 +1,6 @@
 import hre from "hardhat"
 import axios from "axios"
+import { NETWORK } from "../lib/env"
 const { ETHERSCAN_API_KEY } = require("../lib/env")
 const { NETWORK_DEPLOYED_ADDRESSES } = require(`../lib/constants/common`)
 
@@ -19,10 +20,10 @@ async function main() {
 
   for (const contract of contracts) {
     try {
+      let url = `https://api${NETWORK=="ethereum"?"":("-"+NETWORK)}.etherscan.io/api?module=contract&action=getsourcecode&address=${contract.address}&apikey=${ETHERSCAN_API_KEY}`
+      console.log(url)
       // TODO: API url to constants and select by network
-      const response = await axios.get(
-        `https://api-goerli.etherscan.io/api?module=contract&action=getsourcecode&address=${contract.address}&apikey=${ETHERSCAN_API_KEY}`
-      )
+      const response = await axios.get(url)
       const isVerified = response.data.result[0].SourceCode !== ""
       if (isVerified) {
         console.log(`${contract.name} at ${contract.address} already verified`)

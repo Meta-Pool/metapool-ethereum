@@ -30,9 +30,21 @@ module.exports = {
         enabled: true,
       },
       // Uncomment this to use your own mnemonic. Make sure to keep it secret!
-      // accounts: {
-      //   mnemonic: MNEMONIC,
-      // },
+      accounts: {
+        mnemonic: MNEMONIC,
+      },
+    },
+    goerli: {
+      url: String(process.env.RPC_ENDPOINT),
+      accounts: {
+        mnemonic: MNEMONIC,
+      }
+    },
+    ethereum: {
+      url: String(process.env.RPC_ENDPOINT),
+      accounts: {
+        mnemonic: MNEMONIC,
+      },
     },
   },
   gasReporter: {

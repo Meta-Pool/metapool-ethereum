@@ -1,12 +1,12 @@
 {
   "scripts": {
     "compile": "clear && npx hardhat compile",
-    "deploy": "clear && npx hardhat compile && npx hardhat run scripts/deploy.ts",
-    "test": "clear && npx hardhat compile && npx hardhat test test/**.ts --network hardhat",
-    "verify": "clear && npx hardhat run scripts/verify.ts",
-    "upgrade": "clear && npx hardhat compile && npx hardhat run scripts/upgrade.ts",
-    "transfer_to_multisig": "clear && npx hardhat compile && npx hardhat run scripts/transfer_proxy_admin.ts",
-    "prepare_upgrade": "clear && npx hardhat compile && npx hardhat run scripts/prepare_upgrade.ts"
+    "deploy": "clear && npx hardhat compile && npx hardhat run scripts/deploy.ts --network $NETWORK",
+    "test": "clear && npx hardhat compile && npx hardhat test test/**.ts",
+    "verify": "clear && npx hardhat run scripts/verify.ts --network $NETWORK",
+    "upgrade": "clear && npx hardhat compile && npx hardhat run scripts/upgrade.ts --network $NETWORK",
+    "transfer_to_multisig": "clear && npx hardhat compile && npx hardhat run scripts/transfer_proxy_admin.ts --network $NETWORK",
+    "prepare_upgrade": "clear && npx hardhat compile && npx hardhat run scripts/prepare_upgrade.ts --network $NETWORK"
   },
   "dependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.5",

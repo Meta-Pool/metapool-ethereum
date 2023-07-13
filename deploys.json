@@ -1,10 +1,18 @@
 {
   "goerli": {
-    "StakingProxy": "0x748c905130CC15b92B97084Fd1eEBc2d2419146f",
-    "StakingImpl": "0x28140A1b7bAf09ccE084C56b5070888177308035",
-    "WithdrawalProxy": "0x1A8c25ADc96Fb62183C4CB5B9F0c47746B847e05",
-    "WithdrawalImpl": "0xEDc331722AF9FC243D71ade86cD1CdcC94855344",
-    "LiquidUnstakePoolProxy": "0x37774000C885e9355eA7C6B025EbF1704141093C",
-    "LiquidUnstakePoolImpl": "0xEEd0223a366f2B227c72cc2f4d6B509B93a774D3"
+    "StakingProxy": "0x48AFbBd342F64EF8a9Ab1C143719b63C2AD81710",
+    "StakingImpl": "0xB112841c67D94D9536D356631224340E2Ef27b39",
+    "WithdrawalProxy": "0xE55E5fDe6C25ac4AD75D867817D2d8a45836Af49",
+    "WithdrawalImpl": "0xe3355FBBF8B85EbCE83C5E9e846818b82B833cd9",
+    "LiquidUnstakePoolProxy": "0xdF261F967E87B2aa44e18a22f4aCE5d7f74f03Cc",
+    "LiquidUnstakePoolImpl": "0xaba64E88f55C769d46C17beb4c70fDe62D37513C"
+  },
+  "ethereum": {
+    "StakingProxy": "0x48AFbBd342F64EF8a9Ab1C143719b63C2AD81710",
+    "StakingImpl": "0xB112841c67D94D9536D356631224340E2Ef27b39",
+    "LiquidUnstakePoolProxy": "0xdF261F967E87B2aa44e18a22f4aCE5d7f74f03Cc",
+    "LiquidUnstakePoolImpl": "0xaba64E88f55C769d46C17beb4c70fDe62D37513C",
+    "WithdrawalProxy": "0xE55E5fDe6C25ac4AD75D867817D2d8a45836Af49",
+    "WithdrawalImpl": "0xe3355FBBF8B85EbCE83C5E9e846818b82B833cd9"
   }
 }

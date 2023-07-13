@@ -4,8 +4,12 @@ import { deployProtocol } from "../lib/deploy"
 import { updateDeployedAddresses } from "../lib/utils"
 const { NETWORK, BOT_ADDRESS } = require("../lib/env")
 const { NETWORK_DEPLOYED_ADDRESSES } = require(`../lib/constants/common`)
+import hre from "hardhat"
 
 async function main() {
+  // TODO LOG network from hardhat console.log(`Network:${NETWORK}`)
+  const NETWORK =  hre.network.name;
+  console.log(NETWORK);
   const [deployer] = await ethers.getSigners()
   console.log("Deploying the contracts with the account:", await deployer.getAddress())
 
