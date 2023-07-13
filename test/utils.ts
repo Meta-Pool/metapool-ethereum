@@ -4,9 +4,8 @@ const { ADDRESSES, WETH_ABI, NATIVE, DEPOSIT_DATA } = require(`../lib/constants/
 
 const getNextValidator = () =>
   Object.values(
-    (({ pubkey, withdrawal_credentials, signature, deposit_data_root }) => ({
+    (({ pubkey, signature, deposit_data_root }) => ({
       pubkey,
-      withdrawal_credentials,
       signature,
       deposit_data_root,
     }))(DEPOSIT_DATA.pop())

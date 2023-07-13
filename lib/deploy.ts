@@ -1,13 +1,7 @@
 import { ethers, upgrades } from "hardhat"
 import { getContractAddress } from "ethers/lib/utils"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
-
-const {
-  DEPOSIT_CONTRACT_ADDRESS,
-  ADDRESSES,
-  NATIVE,
-  DEPLOYED_ADDRESSES,
-} = require(`../lib/constants/common`)
+const { DEPOSIT_CONTRACT_ADDRESS, ADDRESSES, NATIVE } = require(`../lib/constants/common`)
 
 const deployProtocol = async (
   deployer: SignerWithAddress,
@@ -23,8 +17,7 @@ const deployProtocol = async (
   ])
 
   // First time deploying a proxy, nonce are 4 and 6
-  // Not first time. 2 and 4
-  const [nonceToLiquidPool, nonceToWithdrawal] = DEPLOYED_ADDRESSES ? [2, 4] : [4, 6]
+  const [nonceToLiquidPool, nonceToWithdrawal] = [4, 6]
 
   const expectedLiquidPoolAddress = getContractAddress({
     from: deployer.address,
@@ -51,10 +44,6 @@ const deployProtocol = async (
     }
   )
   await staking.deployed()
-  const [liquidPoolAddressSent, withdrawalAddressSent] = await Promise.all([
-    staking.liquidUnstakePool(),
-    staking.withdrawal(),
-  ])
 
   const liquidUnstakePool = await upgrades.deployProxy(
     LiquidUnstakePool,
@@ -64,28 +53,27 @@ const deployProtocol = async (
     }
   )
   await liquidUnstakePool.deployed()
-  if (
-    liquidUnstakePool.address !== expectedLiquidPoolAddress ||
-    liquidUnstakePool.address !== liquidPoolAddressSent
-  ) {
-    console.log("liquidUnstakePool.address", liquidUnstakePool.address)
-    console.log("expectedLiquidPoolAddress", expectedLiquidPoolAddress)
-    console.log("liquidPoolAddressSent", liquidPoolAddressSent)
-    throw new Error("LiquidUnstakePool address mismatch")
-  }
 
   const withdrawal = await upgrades.deployProxy(Withdrawal, [staking.address], {
     initializer: "initialize",
   })
   await withdrawal.deployed()
-  if (
-    withdrawal.address !== expectedWithdrawalAddress ||
-    withdrawal.address !== withdrawalAddressSent
-  ) {
-    console.log("withdrawal.address", withdrawal.address)
-    console.log("expectedWithdrawalAddress", expectedWithdrawalAddress)
-    console.log("withdrawalAddressSent", withdrawalAddressSent)
-    throw new Error("Withdrawal address mismatch")
+
+  if (liquidUnstakePool.address !== expectedLiquidPoolAddress) {
+    console.log(
+      "LiquidUnstakePool address is not as expected, updating to effective deployed address"
+    )
+    console.log("Expected: ", expectedLiquidPoolAddress)
+    console.log("Deployed: ", liquidUnstakePool.address)
+    await staking.updateLiquidPool(liquidUnstakePool.address)
+  }
+  if (withdrawal.address !== expectedWithdrawalAddress) {
+    console.log(
+      "LiquidUnstakePool address is not as expected, updating to effective deployed address"
+    )
+    console.log("Expected: ", expectedWithdrawalAddress)
+    console.log("Deployed: ", withdrawal.address)
+    await staking.updateWithdrawal(withdrawal.address)
   }
 
   await staking.addToWhitelist([liquidUnstakePool.address])

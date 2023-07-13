@@ -7,7 +7,6 @@ import { toEthers } from "../lib/utils"
 import { deployTest, getNextValidator } from "./utils"
 
 const provider = ethers.provider
-const TWO_DAYS = BigNumber.from(2 * 24 * 60 * 60)
 
 describe("Withdrawal", function () {
   var staking: Contract,
