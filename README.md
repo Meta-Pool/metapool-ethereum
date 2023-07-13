@@ -61,3 +61,8 @@ Note:
 
 #### Upgrade implementations
 `TARGET=Staking npm run upgrade goerli`
+
+#### Transfer proxies admin to multisig
+`npm run transfer_to_multisig goerli`
+
+This only transfer the admin permission to upgrade the contracts implementations, not the `ADMIN_ROLE`
