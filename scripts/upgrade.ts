@@ -1,7 +1,7 @@
 import { ethers, upgrades } from "hardhat"
 import { getImplementationAddress } from "@openzeppelin/upgrades-core"
 import { updateDeployedAddresses } from "../lib/utils"
-const { DEPLOYED_ADDRESSES } = require(`../lib/constants/common`)
+const { NETWORK_DEPLOYED_ADDRESSES } = require(`../lib/constants/common`)
 const { NETWORK, TARGET } = require("../lib/env")
 
 async function main() {
@@ -10,8 +10,8 @@ async function main() {
   const proxyName = `${TARGET}Proxy`,
     implName = `${TARGET}Impl`,
     implementation = await ethers.getContractFactory(TARGET),
-    contractAddress = DEPLOYED_ADDRESSES[proxyName],
-    oldImplAddress = DEPLOYED_ADDRESSES[implName],
+    contractAddress = NETWORK_DEPLOYED_ADDRESSES[proxyName],
+    oldImplAddress = NETWORK_DEPLOYED_ADDRESSES[implName],
     upgrade = await upgrades.upgradeProxy(contractAddress, implementation)
 
   console.log(`Upgrading ${TARGET} at ${contractAddress}`)
@@ -20,8 +20,8 @@ async function main() {
   console.log(`Upgraded implementation`)
   console.log(`from ${oldImplAddress}`)
   console.log(`to ${newImplAddress}`)
-  DEPLOYED_ADDRESSES[implName] = newImplAddress
-  updateDeployedAddresses(DEPLOYED_ADDRESSES, NETWORK)
+  NETWORK_DEPLOYED_ADDRESSES[implName] = newImplAddress
+  updateDeployedAddresses(NETWORK_DEPLOYED_ADDRESSES, NETWORK)
 }
 
 main().catch((error) => {

@@ -1,7 +1,7 @@
 import hre from "hardhat"
 import axios from "axios"
 const { ETHERSCAN_API_KEY } = require("../lib/env")
-const { DEPLOYED_ADDRESSES } = require(`../lib/constants/common`)
+const { NETWORK_DEPLOYED_ADDRESSES } = require(`../lib/constants/common`)
 
 type contractToVerify = {
   name: string
@@ -10,10 +10,10 @@ type contractToVerify = {
 
 async function main() {
   let contracts: contractToVerify[] = []
-  for (const contractName in DEPLOYED_ADDRESSES) {
+  for (const contractName in NETWORK_DEPLOYED_ADDRESSES) {
     contracts.push({
       name: contractName,
-      address: DEPLOYED_ADDRESSES[contractName],
+      address: NETWORK_DEPLOYED_ADDRESSES[contractName],
     })
   }
 
