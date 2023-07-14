@@ -30,6 +30,7 @@ contract LiquidUnstakePool is
     uint16 public constant MAX_FEE = 500;
     uint16 public minFee;
     uint16 public maxFee;
+    uint16 public treasuryFee;
 
     event AddLiquidity(
         address indexed user,
@@ -104,10 +105,12 @@ contract LiquidUnstakePool is
 
     /// @notice Update min and max fees
     /// @dev Min and max fees for swap mpETHForETH
-    function updateSwapFees(uint16 _minFee, uint16 _maxFee) public onlyOwner {
-        if (_minFee == 0 || _minFee >= _maxFee || _maxFee > 1000) revert InvalidSwapFees();
+    function updateSwapFees(uint16 _minFee, uint16 _maxFee, uint16 _treasuryFee) public onlyOwner {
+        if (_minFee == 0 || _minFee >= _maxFee || _maxFee > 1000 || _treasuryFee > 7000)
+            revert InvalidSwapFees();
         minFee = _minFee;
         maxFee = _maxFee;
+        treasuryFee = _treasuryFee;
     }
 
     /// @notice Return the amount of ETH and mpETH equivalent to ETH in the pool
@@ -214,10 +217,10 @@ contract LiquidUnstakePool is
         address payable staking = STAKING;
         (uint256 amountOut, uint256 feeAmount) = getAmountOut(_amount);
         if (amountOut < _minOut) revert SwapMinOut(_minOut, amountOut);
-        uint256 feeToTreasury = (feeAmount * 2500) / 10000;
+        uint256 feeToTreasury = (feeAmount * treasuryFee) / 10000;
         ethBalance -= amountOut;
         IERC20Upgradeable(staking).safeTransferFrom(msg.sender, address(this), _amount);
-        IERC20Upgradeable(staking).safeTransfer(treasury, feeToTreasury);
+        if (feeToTreasury != 0) IERC20Upgradeable(staking).safeTransfer(treasury, feeToTreasury);
         payable(msg.sender).sendValue(amountOut);
         emit Swap(msg.sender, _amount, amountOut, feeAmount, feeToTreasury);
         return amountOut;
