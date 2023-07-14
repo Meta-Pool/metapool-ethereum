@@ -2,12 +2,13 @@ import { ethers } from "hardhat"
 import { deployProtocol } from "../lib/deploy"
 const { ADDRESSES, WETH_ABI, NATIVE, DEPOSIT_DATA } = require(`../lib/constants/common`)
 
+// add 0x because it's not in the validator standard data file
 const getNextValidator = () =>
   Object.values(
     (({ pubkey, signature, deposit_data_root }) => ({
-      pubkey,
-      signature,
-      deposit_data_root,
+      pubkey: "0x" + pubkey,
+      signature: "0x" + signature,
+      deposit_data_root: "0x" + deposit_data_root,
     }))(DEPOSIT_DATA.pop())
   )
 
