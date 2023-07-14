@@ -28,6 +28,8 @@ contract LiquidUnstakePool is
     uint64 public constant MIN_DEPOSIT = 0.01 ether;
     uint16 public constant MIN_FEE = 30;
     uint16 public constant MAX_FEE = 500;
+    uint16 public minFee;
+    uint16 public maxFee;
 
     event AddLiquidity(
         address indexed user,
@@ -57,6 +59,7 @@ contract LiquidUnstakePool is
     error RequestedETHReachMinProportion(uint256 _ethRequested, uint256 _availableETH);
     error SharesTooLow();
     error AssetsTooLow();
+    error InvalidSwapFees();
 
     modifier onlyStaking() {
         if (msg.sender != STAKING) revert NotAuthorized(msg.sender, STAKING);
@@ -97,6 +100,14 @@ contract LiquidUnstakePool is
     /// @dev Min ETH reserves percentage compared to mpETH reserves to allow Staking to request ETH for validators
     function updateMinETHPercentage(uint256 _minETHPercentage) public onlyOwner {
         minETHPercentage = _minETHPercentage;
+    }
+
+    /// @notice Update min and max fees
+    /// @dev Min and max fees for swap mpETHForETH
+    function updateSwapFees(uint16 _minFee, uint16 _maxFee) public onlyOwner {
+        if (_minFee == 0 || _minFee >= _maxFee || _maxFee > 1000) revert InvalidSwapFees();
+        minFee = _minFee;
+        maxFee = _maxFee;
     }
 
     /// @notice Return the amount of ETH and mpETH equivalent to ETH in the pool
@@ -220,13 +231,13 @@ contract LiquidUnstakePool is
         uint256 _amountIn
     ) public view returns (uint256 amountOut, uint256 feeAmount) {
         address payable staking = STAKING;
-        uint16 feeRange = MAX_FEE - MIN_FEE;
+        uint16 feeRange = maxFee - minFee;
         amountOut = Staking(staking).convertToAssets(_amountIn);
         uint256 reservesAfterSwap = ethBalance.sub(amountOut, "Not enough ETH");
-        uint256 finalFee = MIN_FEE;
+        uint256 finalFee = minFee;
         if (reservesAfterSwap < targetLiquidity) {
             uint256 proportionalBp = (feeRange * reservesAfterSwap) / targetLiquidity;
-            finalFee = MAX_FEE - proportionalBp;
+            finalFee = maxFee - proportionalBp;
         }
         feeAmount = (_amountIn * finalFee) / 10000;
         amountOut = Staking(staking).convertToAssets(_amountIn - feeAmount);
