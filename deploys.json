@@ -13,6 +13,7 @@
     "LiquidUnstakePoolProxy": "0xdF261F967E87B2aa44e18a22f4aCE5d7f74f03Cc",
     "LiquidUnstakePoolImpl": "0xcadD976AE3a04352B4Ab28865AF07AD2c366D675",
     "WithdrawalProxy": "0xE55E5fDe6C25ac4AD75D867817D2d8a45836Af49",
-    "WithdrawalImpl": "0xe3355FBBF8B85EbCE83C5E9e846818b82B833cd9"
+    "WithdrawalImpl": "0xe3355FBBF8B85EbCE83C5E9e846818b82B833cd9",
+    "MultisigProxyAdmin": "0x24D9664Ba8384D94499d6698ab285b69E879D971"
   }
 }
