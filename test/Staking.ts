@@ -2,10 +2,11 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { expect } from "chai"
 import { BigNumber, Contract } from "ethers"
-import { ethers } from "hardhat"
+import { ethers, network } from "hardhat"
 import { toEthers } from "../lib/utils"
 import { deployTest } from "./utils"
-import { getNextValidator } from "./utils"
+import { getValidator } from "./utils"
+const { DEPOSIT_CONTRACT_ADDRESS, DEPOSIT_ABI } = require(`../lib/constants/common`)
 
 const provider = ethers.provider
 
@@ -18,11 +19,27 @@ describe("Staking", () => {
     updater: SignerWithAddress,
     user: SignerWithAddress,
     treasury: SignerWithAddress,
-    wethC: Contract
+    wethC: Contract,
+    depositContract: Contract = new ethers.Contract(
+      DEPOSIT_CONTRACT_ADDRESS,
+      DEPOSIT_ABI,
+      provider
+    ),
+    withdrawalCredentials: string
 
   beforeEach(async () => {
-    ;({ owner, activator, user, staking, liquidUnstakePool, updater, withdrawal, treasury, wethC } =
-      await loadFixture(deployTest))
+    ;({
+      owner,
+      activator,
+      user,
+      staking,
+      liquidUnstakePool,
+      updater,
+      withdrawal,
+      treasury,
+      wethC,
+      withdrawalCredentials,
+    } = await loadFixture(deployTest))
   })
 
   describe("Deposit", () => {
@@ -155,22 +172,84 @@ describe("Staking", () => {
     it("Push more than owned balance must revert", async () => {
       expect(await staking.totalUnderlying()).to.eq(toEthers(0))
       await expect(
-        staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
+        staking
+          .connect(activator)
+          .pushToBeacon(
+            [getValidator(withdrawalCredentials)],
+            0,
+            0,
+            await depositContract.get_deposit_root()
+          )
       ).to.be.revertedWithCustomError(staking, "NotEnoughETHtoStake")
     })
 
     it("Push without permissions must revert", async () => {
       const ACTIVATOR_ROLE = await staking.ACTIVATOR_ROLE()
       await expect(
-        staking.connect(user).pushToBeacon([getNextValidator()], 0, 0)
+        staking
+          .connect(user)
+          .pushToBeacon(
+            [getValidator(withdrawalCredentials)],
+            0,
+            0,
+            await depositContract.get_deposit_root()
+          )
       ).to.be.revertedWith(
         `AccessControl: account ${user.address.toLowerCase()} is missing role ${ACTIVATOR_ROLE}`
       )
     })
 
+    // Avoid deposit front-run attack
+    it("Deposit in same block must revert", async () => {
+      try {
+        await owner.sendTransaction({
+          to: staking.address,
+          value: toEthers(32),
+        })
+        const validator = getValidator(withdrawalCredentials),
+          userSigner = ethers.provider.getSigner(user.address),
+          activatorSigner = ethers.provider.getSigner(activator.address)
+
+        await network.provider.send("evm_setAutomine", [false])
+
+        await userSigner.sendTransaction({
+          to: depositContract.address,
+          value: toEthers(32),
+          data: depositContract.interface.encodeFunctionData("deposit", [
+            validator.pubkey,
+            withdrawalCredentials,
+            validator.signature,
+            validator.depositDataRoot,
+          ]),
+        })
+        await activatorSigner.sendTransaction({
+          to: staking.address,
+          data: staking.interface.encodeFunctionData("pushToBeacon", [
+            [validator],
+            0,
+            0,
+            await depositContract.get_deposit_root(),
+          ]),
+        })
+
+        await network.provider.send("evm_mine")
+        throw new Error("Should have reverted but it didn't")
+      } catch (e: any) {
+        await network.provider.send("evm_setAutomine", [true])
+        expect(e.message).to.contain("DepositRootMismatch")
+      }
+    })
+
     it("Push 32 ETH", async () => {
       await staking.depositETH(owner.address, { value: toEthers(32) })
-      await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
+      await staking
+        .connect(activator)
+        .pushToBeacon(
+          [getValidator(withdrawalCredentials)],
+          0,
+          0,
+          await depositContract.get_deposit_root()
+        )
       expect(await staking.totalUnderlying()).to.eq(toEthers(32))
       expect(await staking.totalNodesActivated()).to.eq(1)
       // Check: stakingBalance, totalAssets, mpETHPrice
@@ -183,7 +262,14 @@ describe("Staking", () => {
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value)
       expect(await liquidUnstakePool.ethBalance()).to.eq(value)
       expect(await staking.totalUnderlying()).to.eq(value)
-      await staking.connect(activator).pushToBeacon([getNextValidator()], value.div(2), 0)
+      await staking
+        .connect(activator)
+        .pushToBeacon(
+          [getValidator(withdrawalCredentials)],
+          value.div(2),
+          0,
+          await depositContract.get_deposit_root()
+        )
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value.div(2))
       expect(await liquidUnstakePool.ethBalance()).to.eq(value.div(2))
       expect(await staking.totalUnderlying()).to.eq(value.add(value.div(2)))
@@ -197,7 +283,14 @@ describe("Staking", () => {
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value)
       expect(await liquidUnstakePool.ethBalance()).to.eq(value)
       await expect(
-        staking.connect(activator).pushToBeacon([getNextValidator()], value, 0)
+        staking
+          .connect(activator)
+          .pushToBeacon(
+            [getValidator(withdrawalCredentials)],
+            value,
+            0,
+            await depositContract.get_deposit_root()
+          )
       ).to.be.revertedWithCustomError(liquidUnstakePool, "RequestedETHReachMinProportion")
     })
 
@@ -209,7 +302,14 @@ describe("Staking", () => {
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value)
       expect(await liquidUnstakePool.ethBalance()).to.eq(value)
       const stakingBalanceBefore = await staking.totalUnderlying()
-      await staking.connect(activator).pushToBeacon([getNextValidator()], toEthers(32), 0)
+      await staking
+        .connect(activator)
+        .pushToBeacon(
+          [getValidator(withdrawalCredentials)],
+          toEthers(32),
+          0,
+          await depositContract.get_deposit_root()
+        )
       expect(await provider.getBalance(liquidUnstakePool.address)).to.eq(value.div(2))
       expect(await liquidUnstakePool.ethBalance()).to.eq(value.div(2))
       expect(await staking.totalUnderlying()).to.eq(stakingBalanceBefore.add(toEthers(32)))
@@ -236,9 +336,10 @@ describe("Staking", () => {
       const UPDATER_ROLE = await staking.UPDATER_ROLE()
       await staking.depositETH(owner.address, { value: depositValue })
       await staking.connect(activator).pushToBeacon(
-        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        [...Array(newNodes).keys()].map((_) => getValidator(withdrawalCredentials)),
         0,
-        0
+        0,
+        await depositContract.get_deposit_root()
       )
       expect(await staking.totalUnderlying()).to.eq(nodesBalance)
       await expect(staking.reportEpochs(defaultReport, 0)).to.be.revertedWith(
@@ -249,9 +350,10 @@ describe("Staking", () => {
     it("Revert before timelock", async () => {
       await staking.connect(owner).depositETH(owner.address, { value: depositValue })
       await staking.connect(activator).pushToBeacon(
-        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        [...Array(newNodes).keys()].map((_) => getValidator(withdrawalCredentials)),
         0,
-        0
+        0,
+        await depositContract.get_deposit_root()
       )
       await staking.connect(updater).reportEpochs(defaultReport, 0)
       await expect(
@@ -262,9 +364,10 @@ describe("Staking", () => {
     it("Revert with rewards + penalties more than 1%", async () => {
       await staking.connect(owner).depositETH(owner.address, { value: depositValue })
       await staking.connect(activator).pushToBeacon(
-        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        [...Array(newNodes).keys()].map((_) => getValidator(withdrawalCredentials)),
         0,
-        0
+        0,
+        await depositContract.get_deposit_root()
       )
       const invalidRewardsReport = { ...defaultReport }
       invalidRewardsReport.rewards = onePercent.add(1)
@@ -281,9 +384,10 @@ describe("Staking", () => {
     it("Report with rewards as 1% of totalUnderlying and mint mpETH for treasury", async () => {
       await staking.connect(owner).depositETH(owner.address, { value: depositValue })
       await staking.connect(activator).pushToBeacon(
-        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        [...Array(newNodes).keys()].map((_) => getValidator(withdrawalCredentials)),
         0,
-        0
+        0,
+        await depositContract.get_deposit_root()
       )
       const stakingFee = await staking.rewardsFee()
       const expectedFee = onePercent.mul(stakingFee).div(10000)
@@ -297,9 +401,10 @@ describe("Staking", () => {
     it("Report rewards and penalties as zero", async () => {
       await staking.connect(owner).depositETH(owner.address, { value: depositValue })
       await staking.connect(activator).pushToBeacon(
-        [...Array(newNodes).keys()].map((_) => getNextValidator()),
+        [...Array(newNodes).keys()].map((_) => getValidator(withdrawalCredentials)),
         0,
-        0
+        0,
+        await depositContract.get_deposit_root()
       )
       const reportEmptyRewards = { ...defaultReport }
       reportEmptyRewards.rewards = BigNumber.from(0)

@@ -4,7 +4,8 @@ import { expect } from "chai"
 import { BigNumber, Contract } from "ethers"
 import { ethers } from "hardhat"
 import { toEthers } from "../lib/utils"
-import { deployTest, getNextValidator } from "./utils"
+import { deployTest, getValidator } from "./utils"
+const { DEPOSIT_CONTRACT_ADDRESS, DEPOSIT_ABI } = require(`../lib/constants/common`)
 
 const provider = ethers.provider
 
@@ -13,10 +14,18 @@ describe("Withdrawal", function () {
     withdrawal: Contract,
     owner: SignerWithAddress,
     user: SignerWithAddress,
-    activator: SignerWithAddress
+    activator: SignerWithAddress,
+    depositContract: Contract = new ethers.Contract(
+      DEPOSIT_CONTRACT_ADDRESS,
+      DEPOSIT_ABI,
+      provider
+    ),
+    withdrawalCredentials: string
 
   beforeEach(async () => {
-    ;({ owner, withdrawal, user, staking, activator } = await loadFixture(deployTest))
+    ;({ owner, withdrawal, user, staking, activator, withdrawalCredentials } = await loadFixture(
+      deployTest
+    ))
   })
 
   describe("Epoch", function () {
@@ -76,7 +85,14 @@ describe("Withdrawal", function () {
       await staking.connect(user).depositETH(user.address, { value: depositAmount })
       await staking.connect(user).approve(staking.address, depositAmount)
       await staking.connect(user).redeem(depositAmount, user.address, user.address)
-      await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
+      await staking
+        .connect(activator)
+        .pushToBeacon(
+          [getValidator(withdrawalCredentials)],
+          0,
+          0,
+          await depositContract.get_deposit_root()
+        )
       await expect(withdrawal.connect(user).completeWithdraw()).to.be.revertedWithCustomError(
         withdrawal,
         "ClaimTooSoon"
@@ -89,7 +105,14 @@ describe("Withdrawal", function () {
       await staking.connect(user).depositETH(user.address, { value: depositAmount })
       await staking.connect(user).approve(staking.address, depositAmount)
       await staking.connect(user).redeem(depositAmount, user.address, user.address)
-      await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
+      await staking
+        .connect(activator)
+        .pushToBeacon(
+          [getValidator(withdrawalCredentials)],
+          0,
+          0,
+          await depositContract.get_deposit_root()
+        )
       await time.increase(await withdrawal.getEpochTimeLeft())
       const validatorsDisassembleTime = await withdrawal.validatorsDisassembleTime()
       const epochPlusDisassembleTime =
@@ -105,7 +128,14 @@ describe("Withdrawal", function () {
       await staking.connect(user).depositETH(user.address, { value: depositAmount })
       await staking.connect(user).approve(staking.address, depositAmount)
       await staking.connect(user).redeem(depositAmount, user.address, user.address)
-      await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
+      await staking
+        .connect(activator)
+        .pushToBeacon(
+          [getValidator(withdrawalCredentials)],
+          0,
+          0,
+          await depositContract.get_deposit_root()
+        )
       const validatorsDisassembleTime = await withdrawal.validatorsDisassembleTime()
       await time.increase((await withdrawal.getEpochTimeLeft()).add(validatorsDisassembleTime))
       await expect(withdrawal.connect(user).completeWithdraw()).to.be.revertedWith(
@@ -121,7 +151,14 @@ describe("Withdrawal", function () {
       await staking.connect(user).depositETH(user.address, { value: depositAmount })
       await staking.connect(user).approve(staking.address, depositAmount)
       await staking.connect(user).redeem(depositAmount, user.address, user.address)
-      await staking.connect(activator).pushToBeacon([getNextValidator()], 0, 0)
+      await staking
+        .connect(activator)
+        .pushToBeacon(
+          [getValidator(withdrawalCredentials)],
+          0,
+          0,
+          await depositContract.get_deposit_root()
+        )
       const validatorsDisassembleTime = await withdrawal.validatorsDisassembleTime()
       await time.increase((await withdrawal.getEpochTimeLeft()).add(validatorsDisassembleTime))
       await owner.sendTransaction({
@@ -142,7 +179,14 @@ describe("Withdrawal", function () {
   describe("Activate validator with ETH from Withdrawal", async () => {
     it("Revert push with 0 ETH on Withdrawal", async () => {
       await expect(
-        staking.connect(activator).pushToBeacon([getNextValidator()], 0, toEthers(32))
+        staking
+          .connect(activator)
+          .pushToBeacon(
+            [getValidator(withdrawalCredentials)],
+            0,
+            toEthers(32),
+            await depositContract.get_deposit_root()
+          )
       ).to.be.revertedWithCustomError(withdrawal, "NotEnoughETHtoStake")
     })
 
@@ -158,7 +202,14 @@ describe("Withdrawal", function () {
         value: depositAmount,
       })
       await expect(
-        staking.connect(activator).pushToBeacon([getNextValidator()], 0, toEthers(32))
+        staking
+          .connect(activator)
+          .pushToBeacon(
+            [getValidator(withdrawalCredentials)],
+            0,
+            toEthers(32),
+            await depositContract.get_deposit_root()
+          )
       ).to.be.revertedWithCustomError(withdrawal, "NotEnoughETHtoStake")
     })
 
@@ -173,7 +224,14 @@ describe("Withdrawal", function () {
       expect(await provider.getBalance(staking.address)).eq(depositAmount)
       expect(await staking.totalUnderlying()).eq(depositAmount)
       const mpETHPrice = await staking.convertToAssets(toEthers(1))
-      await staking.connect(activator).pushToBeacon([getNextValidator()], 0, depositAmount)
+      await staking
+        .connect(activator)
+        .pushToBeacon(
+          [getValidator(withdrawalCredentials)],
+          0,
+          depositAmount,
+          await depositContract.get_deposit_root()
+        )
       expect(await provider.getBalance(withdrawal.address)).eq(0)
       expect(await provider.getBalance(staking.address)).eq(0)
       expect(await staking.totalUnderlying()).eq(depositAmount)
