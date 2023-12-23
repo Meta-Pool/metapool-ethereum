@@ -93,6 +93,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         uint16 _acceptableUnderlyingChangeSent,
         uint16 _maxAcceptableUnderlyingChange
     );
+    error DepositRootMismatch();
 
     modifier checkWhitelisting() {
         if (whitelistEnabled && !whitelistedAccounts[msg.sender])
@@ -277,23 +278,27 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     /// @param _nodes Nodes info for staking
     /// @param _requestPoolAmount ETH amount to take from LiquidUnstakePool
     /// @param _requestWithdrawalAmount ETH amount to take from Withdrawal
+    /// @param _depositContractRoot Valid root state of the deposit contract
     function pushToBeacon(
         Node[] memory _nodes,
         uint256 _requestPoolAmount,
-        uint256 _requestWithdrawalAmount
+        uint256 _requestWithdrawalAmount,
+        bytes32 _depositContractRoot
     ) external onlyRole(ACTIVATOR_ROLE) {
+        if (_depositContractRoot != depositContract.get_deposit_root())
+            revert DepositRootMismatch();
         uint32 nodesLength = uint32(_nodes.length);
-        uint256 requiredBalance = nodesLength * 32 ether;
-        uint256 stakingBalance = address(this).balance;
-        // TODO: Check exact amount of ETH needed to stake
-        if (stakingBalance + _requestPoolAmount + _requestWithdrawalAmount < requiredBalance)
-            revert NotEnoughETHtoStake(
-                stakingBalance,
-                _requestPoolAmount,
-                _requestWithdrawalAmount,
-                requiredBalance
-            );
-
+        {
+            uint256 requiredBalance = nodesLength * 32 ether;
+            uint256 stakingBalance = address(this).balance;
+            if (stakingBalance + _requestPoolAmount + _requestWithdrawalAmount < requiredBalance)
+                revert NotEnoughETHtoStake(
+                    stakingBalance,
+                    _requestPoolAmount,
+                    _requestWithdrawalAmount,
+                    requiredBalance
+                );
+        }
         if (_requestPoolAmount > 0)
             LiquidUnstakePool(liquidUnstakePool).getEthForValidator(_requestPoolAmount);
         if (_requestWithdrawalAmount > 0)

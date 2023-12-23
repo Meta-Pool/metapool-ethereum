@@ -8,4 +8,6 @@ interface IDeposit {
         bytes memory signature,
         bytes32 deposit_data_root
     ) external payable;
+
+    function get_deposit_root() external view returns (bytes32);
 }
