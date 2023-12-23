@@ -11,7 +11,7 @@ const TESTNETS = ["goerli", "hardhat"]
 const mnemonic = fs.readFileSync(path.join(os.homedir(), ".config/mp-eth-mnemonic.txt")).toString()
 
 export = {
-  BLOCK_NUMBER: process.env.BLOCK_NUMBER ? parseInt(process.env.BLOCK_NUMBER) : 0,
+  BLOCK_NUMBER: process.env.BLOCK_NUMBER ? parseInt(process.env.BLOCK_NUMBER) : null,
   BOT_ADDRESS: process.env.BOT_ADDRESS,
   NETWORK,
   ETHERSCAN_API_KEY: process.env.ETHERSCAN_API_KEY,

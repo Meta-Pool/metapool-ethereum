@@ -50,7 +50,6 @@ BLOCK_NUMBER="Block number to fork"
 ## Commands
 Note: 
 - All commands also compile the contracts
-- All commands will use the `NETWORK` variable from `.env`
 ### Compile contracts
 `npm run compile`
 
@@ -58,15 +57,15 @@ Note:
 `npm test`
 
 ### Deploy
-`npm run deploy`
+`npm run deploy <network>`
 
 ### Verify contracts
-`npm run verify`
+`npm run verify <network>`
 
 ### Upgrade implementations
-`TARGET=Staking npm run upgrade`
+`TARGET=Staking npm run upgrade <network>`
 
 ### Transfer proxies admin to multisig
-`npm run transfer_to_multisig`
+`npm run transfer_to_multisig <network>`
 
 This only transfer the admin permission to upgrade the contracts implementations, not the `ADMIN_ROLE`
