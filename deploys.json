@@ -9,7 +9,7 @@
   },
   "ethereum": {
     "StakingProxy": "0x48AFbBd342F64EF8a9Ab1C143719b63C2AD81710",
-    "StakingImpl": "0xB112841c67D94D9536D356631224340E2Ef27b39",
+    "StakingImpl": "0x3747484567119592fF6841df399cf679955A111A",
     "LiquidUnstakePoolProxy": "0xdF261F967E87B2aa44e18a22f4aCE5d7f74f03Cc",
     "LiquidUnstakePoolImpl": "0xcadD976AE3a04352B4Ab28865AF07AD2c366D675",
     "WithdrawalProxy": "0xE55E5fDe6C25ac4AD75D867817D2d8a45836Af49",

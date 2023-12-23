@@ -278,7 +278,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     /// @param _nodes Nodes info for staking
     /// @param _requestPoolAmount ETH amount to take from LiquidUnstakePool
     /// @param _requestWithdrawalAmount ETH amount to take from Withdrawal
-    /// @param _depositContractRoot Valid root state of the deposit contract
+    /// @param _depositContractRoot Valid root state of the deposit contract to avoid front-running
     function pushToBeacon(
         Node[] memory _nodes,
         uint256 _requestPoolAmount,
