@@ -34,6 +34,12 @@ module.exports = {
         mnemonic: MNEMONIC,
       },
     },
+    sepolia: {
+      url: String(process.env.RPC_ENDPOINT),
+      accounts: {
+        mnemonic: MNEMONIC,
+      }
+    },
     goerli: {
       url: String(process.env.RPC_ENDPOINT),
       accounts: {
