@@ -15,5 +15,13 @@
     "WithdrawalProxy": "0xE55E5fDe6C25ac4AD75D867817D2d8a45836Af49",
     "WithdrawalImpl": "0xe3355FBBF8B85EbCE83C5E9e846818b82B833cd9",
     "MultisigProxyAdmin": "0x24D9664Ba8384D94499d6698ab285b69E879D971"
+  },
+  "holesky": {
+    "StakingProxy": "0xeeb074316a4b5e45568F15382f91C661844c3E69",
+    "StakingImpl": "0x116DF6dB9D8EB102388a3bAb11A8BEA25deCF72a",
+    "LiquidUnstakePoolProxy": "0x7CB33E12462D1Cc33b1306F9dF7de0C21F6d8b93",
+    "LiquidUnstakePoolImpl": "0x1B8A04C5C1CA3a96917b5C8557433C06e5d04fD2",
+    "WithdrawalProxy": "0x9227bEF08Eddf3823b6b20b2b52dd6C4E491e684",
+    "WithdrawalImpl": "0xB9bCB543FC45620fBc6C7aE81C260b3903EF2415"
   }
 }

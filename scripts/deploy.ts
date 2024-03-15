@@ -15,9 +15,9 @@ async function main() {
 
   const { staking, liquidUnstakePool, withdrawal } = await deployProtocol(
     deployer,
-    deployer.address,
     BOT_ADDRESS,
-    BOT_ADDRESS
+    BOT_ADDRESS,
+    deployer.address,
   )
 
   const [stakingImplAddress, liquidUnstakePoolImplAddress, withdrawalImplAddress] =

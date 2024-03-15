@@ -1,7 +1,9 @@
-import "@openzeppelin/hardhat-upgrades"
-import "@nomicfoundation/hardhat-toolbox"
-import "@openzeppelin/hardhat-defender"
+// import "@openzeppelin/hardhat-upgrades"
+// import "@nomicfoundation/hardhat-toolbox"
+// import "@openzeppelin/hardhat-defender"
 import "hardhat-gas-reporter"
+import "@nomicfoundation/hardhat-verify";
+
 const {
   RPC_ENDPOINT,
   BLOCK_NUMBER,
