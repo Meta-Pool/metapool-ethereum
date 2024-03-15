@@ -27,7 +27,7 @@ module.exports = {
                 mnemonic: MNEMONIC,
             },
         },
-        sepolia: {
+        holesky: {
             url: String(process.env.RPC_ENDPOINT),
             accounts: {
                 mnemonic: MNEMONIC,
