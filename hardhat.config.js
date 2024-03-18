@@ -1,10 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-// require("@openzeppelin/hardhat-upgrades");
-// require("@nomicfoundation/hardhat-toolbox");
-// require("@openzeppelin/hardhat-defender");
+require("@openzeppelin/hardhat-upgrades");
+require("@nomicfoundation/hardhat-toolbox");
+require("@openzeppelin/hardhat-defender");
 require("hardhat-gas-reporter");
-require("@nomicfoundation/hardhat-verify");
+// require("@nomicfoundation/hardhat-verify");
 
 const { RPC_ENDPOINT, BLOCK_NUMBER, MNEMONIC, ETHERSCAN_API_KEY, DEFENDER_API_KEY, DEFENDER_SECRET_KEY, REPORT_GAS, } = require("./lib/env");
 module.exports = {
