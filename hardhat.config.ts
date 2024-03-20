@@ -2,6 +2,8 @@ import "@openzeppelin/hardhat-upgrades"
 import "@nomicfoundation/hardhat-toolbox"
 import "@openzeppelin/hardhat-defender"
 import "hardhat-gas-reporter"
+// import "@nomicfoundation/hardhat-verify";
+
 const {
   RPC_ENDPOINT,
   BLOCK_NUMBER,
@@ -33,6 +35,18 @@ module.exports = {
       accounts: {
         mnemonic: MNEMONIC,
       },
+    },
+    sepolia: {
+      url: String(process.env.RPC_ENDPOINT),
+      accounts: {
+        mnemonic: MNEMONIC,
+      }
+    },
+    holesky: {
+      url: String(process.env.RPC_ENDPOINT),
+      accounts: {
+        mnemonic: MNEMONIC,
+      }
     },
     goerli: {
       url: String(process.env.RPC_ENDPOINT),
