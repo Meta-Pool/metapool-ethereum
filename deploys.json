@@ -23,5 +23,13 @@
     "LiquidUnstakePoolImpl": "0x1B8A04C5C1CA3a96917b5C8557433C06e5d04fD2",
     "WithdrawalProxy": "0x9227bEF08Eddf3823b6b20b2b52dd6C4E491e684",
     "WithdrawalImpl": "0xB9bCB543FC45620fBc6C7aE81C260b3903EF2415"
+  },
+  "sepolia": {
+    "StakingProxy": "0xe50339fE67402Cd59c32656D679479801990579f",
+    "StakingImpl": "0x23bC7238676B3B4aFa59C21c81358463677B91FA",
+    "LiquidUnstakePoolProxy": "0x16bca96c9cdB63Adf285410682A9d2b76fE6c17f",
+    "LiquidUnstakePoolImpl": "0x52449dA012fE3D6f772f1b1350a2b0D4847546E5",
+    "WithdrawalProxy": "0xfe3A216FC7f03704fB5CB485A64259E6a78547e8",
+    "WithdrawalImpl": "0xdB4d4542a0B59Df9674a2b42E87768E777c831c9"
   }
 }
