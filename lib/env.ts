@@ -3,10 +3,10 @@ import * as path from "path"
 import * as fs from "fs"
 
 require("dotenv").config()
-const NETWORK = process.env.NETWORK || "holesky"
+const NETWORK = process.env.NETWORK || "sepolia"
 require("dotenv").config({ path: `.env.${NETWORK}` })
 
-const TESTNETS = ["holesky", "hardhat"]
+const TESTNETS = ["sepolia", "hardhat"]
 
 const mnemonic = fs.readFileSync(path.join(os.homedir(), ".config/mp-eth-mnemonic.txt")).toString()
 

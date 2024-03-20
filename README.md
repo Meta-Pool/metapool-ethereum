@@ -8,7 +8,7 @@ Allows users to stake ETH or WETH, instant redeem of mpETH (with a small fee) or
 
 ### Goerli Testnet Deploys
 
-> **_NOTE:_** Goerli is no longer supported, use Holesky testnet.
+> **_NOTE:_** Goerli is no longer supported, use `Sepolia` testnet.
 
 Staking deployed to [0x748c905130CC15b92B97084Fd1eEBc2d2419146f](https://goerli.etherscan.io/address/0x748c905130CC15b92B97084Fd1eEBc2d2419146f)
 LiquidUnstakePool deployed to [0x37774000C885e9355eA7C6B025EbF1704141093C](https://goerli.etherscan.io/address/0x37774000C885e9355eA7C6B025EbF1704141093C)
@@ -39,7 +39,7 @@ For testing with hardhat generated accounts, the `.env` only requires:
 ```
 NETWORK="Network used for all commands"
 ```
-If NETWORK is not set, hardhat will try to use the `Holesky` network.
+If NETWORK is not set, hardhat will try to use the `Sepolia` network.
 
 For production you will need extra variables. Check `.env.sample` for a list of all variables 
 
