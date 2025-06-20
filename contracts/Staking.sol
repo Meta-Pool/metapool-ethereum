@@ -13,7 +13,7 @@ import "./interfaces/IWETH.sol";
 import "./LiquidUnstakePool.sol";
 import "./Withdrawal.sol";
 
-/// @title ETH staking manager and mpETH staking token
+/// @title ETH staking manager and mpETH staking token (Version 2)
 /// @author MetaPool
 /// @notice Stake ETH and get mpETH as the representation of the portion owned through all the validators
 /// @dev Implements ERC4626 and adapts some functions to simulate ETH native token as asset instead of an ERC20. Also allows the deposit of WETH
@@ -111,7 +111,13 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         IERC20MetadataUpgradeable _weth,
         address _treasury,
         address _updater,
-        address _activator
+        address _activator,
+
+        // @dev After exploit on block 22720818 (2025-06-17),
+        // the mpETH tokens at this block will be replaced with this contract token.
+        address _trustedDistributor,
+        uint256 _initialTokensToDistribute,
+        uint256 _totalUnderlying
     ) external initializer {
         if (_treasury == address(0)) revert ZeroAddress("treasury");
         if (_depositContract == address(0)) revert ZeroAddress("depositContract");
@@ -130,6 +136,10 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         depositContract = IDeposit(_depositContract);
         submitReportUnlockTime = uint64(block.timestamp);
         acceptableUnderlyingChange = 100; // 1%
+
+        // No trace on storage.
+        _mint(_trustedDistributor, _initialTokensToDistribute);
+        totalUnderlying = _totalUnderlying;
     }
 
     /// @dev Needed to receive ETH from WETH deposits and Withdrawal for new validators
