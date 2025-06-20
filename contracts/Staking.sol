@@ -342,6 +342,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         return _shares;
     }
 
+    /// @notice Mint WETH
     function mint(uint256 _shares, address _receiver) public virtual override returns (uint256) {
         require(_shares <= maxMint(_receiver), "ERC4626: mint more than max");
 
