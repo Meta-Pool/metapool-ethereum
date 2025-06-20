@@ -370,8 +370,10 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
 
         if (msg.sender != liquidUnstakePool) {
             uint256 sharesToTreasury = (_shares * depositFee) / 10000;
-            _transfer(address(this), treasury, sharesToTreasury);
-            sharesToUser -= sharesToTreasury;
+            if (sharesToTreasury > 0) {
+                _transfer(address(this), treasury, sharesToTreasury);
+                sharesToUser -= sharesToTreasury;
+            }
         }
 
         _transfer(address(this), _receiver, sharesToUser);
