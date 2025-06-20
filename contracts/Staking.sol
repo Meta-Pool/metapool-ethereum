@@ -342,6 +342,17 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         return _shares;
     }
 
+    function mint(uint256 _shares, address _receiver) public virtual override returns (uint256) {
+        require(_shares <= maxMint(_receiver), "ERC4626: mint more than max");
+
+        uint256 assets = previewMint(_shares);
+        IERC20Upgradeable(asset()).safeTransferFrom(msg.sender, address(this), assets);
+        IWETH(asset()).withdraw(assets);
+        _deposit(_msgSender(), _receiver, assets, _shares);
+
+        return assets;
+    }
+
     /// @notice Deposit ETH
     /// @dev Equivalent to deposit function but for native token
     function depositETH(address _receiver) public payable returns (uint256) {
