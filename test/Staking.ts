@@ -73,9 +73,13 @@ describe("Staking", () => {
 
     it("Deposit ETH", async () => {
       const value = toEthers(32)
+      const originalBalance = await provider.getBalance(owner.address)
       await staking.depositETH(owner.address, { value })
       expect(await staking.balanceOf(owner.address)).to.eq(value)
       expect(await provider.getBalance(staking.address)).to.eq(value)
+
+      // Check that the owner's balance is reduced by the deposit amount (considering gas fees)
+      expect(await provider.getBalance(owner.address)).to.lessThan(originalBalance.sub(value))
       // TODO: Check totalAssets, mpETHPrice, stakingBalance
     })
 
@@ -83,8 +87,25 @@ describe("Staking", () => {
       const value = toEthers(32)
       await wethC.connect(owner).deposit({ value })
       await wethC.connect(owner).approve(staking.address, value)
+      expect(await wethC.connect(owner).balanceOf(owner.address)).to.eq(value)
       await staking.deposit(value, owner.address)
       expect(await staking.balanceOf(owner.address)).to.eq(value)
+
+      // Check that the owner's balance is reduced by the deposit amount.
+      expect(await wethC.connect(owner).balanceOf(owner.address)).to.equal(0)
+      // TODO: Check totalAssets, mpETHPrice, stakingBalance
+    })
+
+    it("Mint WETH", async () => {
+      const value = toEthers(32)
+      await wethC.connect(owner).deposit({ value })
+      await wethC.connect(owner).approve(staking.address, value)
+      expect(await wethC.connect(owner).balanceOf(owner.address)).to.eq(value)
+      await staking.mint(value, owner.address)
+      expect(await staking.balanceOf(owner.address)).to.eq(value)
+
+      // Check that the owner's balance is reduced by the deposit amount.
+      expect(await wethC.connect(owner).balanceOf(owner.address)).to.equal(0)
       // TODO: Check totalAssets, mpETHPrice, stakingBalance
     })
 
