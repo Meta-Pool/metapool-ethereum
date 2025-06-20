@@ -101,6 +101,9 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() { _disableInitializers(); }
+
     function initialize(
         address _liquidPool,
         address _withdrawal,
