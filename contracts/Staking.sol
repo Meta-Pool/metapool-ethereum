@@ -300,7 +300,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     ) external onlyRole(ACTIVATOR_ROLE) {
         if (_depositContractRoot != depositContract.get_deposit_root())
             revert DepositRootMismatch();
-        uint32 nodesLength = uint32(_nodes.length);
+        uint256 nodesLength = uint256(_nodes.length);
         {
             uint256 requiredBalance = nodesLength * 32 ether;
             uint256 stakingBalance = address(this).balance;
