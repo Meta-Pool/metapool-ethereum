@@ -2,6 +2,7 @@ import { ethers, upgrades } from "hardhat"
 import { getContractAddress } from "ethers/lib/utils"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 const { DEPOSIT_CONTRACT_ADDRESS, ADDRESSES, NATIVE } = require(`../lib/constants/common`)
+import { BigNumber } from "ethers";
 
 const deployProtocol = async (
   deployer: SignerWithAddress,
@@ -87,4 +88,45 @@ const deployProtocol = async (
   }
 }
 
-export { deployProtocol }
+// Staking (Liquid Staking Token): deploy a new proxy with a new implementation.
+const deployStakingV2 = async (
+  deployer: SignerWithAddress,
+  currentLiquidPoolAddress: string,
+  currentWithdrawalAddress: string,
+  updater: string,
+  activator: string,
+  treasury: string,
+  trustedDistributor: string,
+  initialTokensToDistribute: BigNumber,
+  totalUnderlying: BigNumber,
+) => {
+  updater = updater || deployer.address
+  activator = activator || deployer.address
+  const [Staking] = await Promise.all([ethers.getContractFactory("Staking")])
+
+  const staking = await upgrades.deployProxy(
+    Staking,
+    [
+      currentLiquidPoolAddress,
+      currentWithdrawalAddress,
+      DEPOSIT_CONTRACT_ADDRESS,
+      ADDRESSES[NATIVE], // weth
+      treasury,
+      updater,
+      activator,
+      trustedDistributor,
+      initialTokensToDistribute,
+      totalUnderlying
+    ],
+    {
+      initializer: "initialize",
+    }
+  )
+  await staking.deployed()
+
+  await staking.addToWhitelist([currentLiquidPoolAddress])
+
+  return { staking }
+}
+
+export { deployProtocol, deployStakingV2 }
