@@ -187,7 +187,7 @@ contract LiquidUnstakePool is
         emit Withdraw(msg.sender, _receiver, _owner, ETHToSend, shares);
     }
 
-    /// @dev Overrided to return ETH and mpETH for shares
+    /// @dev Overridden to return ETH and mpETH for shares
     /// @return ETHToSend ETH sent to user. Don't includes mpETH sent
     function redeem(
         uint256 _shares,
