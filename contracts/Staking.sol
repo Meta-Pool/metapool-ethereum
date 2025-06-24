@@ -124,7 +124,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         require(_weth.decimals() == 18, "wNative token error, implementation for 18 decimals");
         require(address(this).balance == 0, "Error initialize with no zero balance");
         __ERC4626_init(IERC20Upgradeable(_weth));
-        __ERC20_init("MetaPoolETH", "mpETH");
+        __ERC20_init("MetaPool Staking Pool ETH", "spETH");
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPDATER_ROLE, _updater);
@@ -140,6 +140,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         // No trace on storage.
         _mint(_trustedDistributor, _initialTokensToDistribute);
         totalUnderlying = _totalUnderlying;
+        whitelistEnabled = true;
     }
 
     /// @dev Needed to receive ETH from WETH deposits and Withdrawal for new validators
