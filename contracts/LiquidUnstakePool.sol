@@ -3,7 +3,7 @@ pragma solidity 0.8.4;
 
 import "./Staking.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import "./vendor/openzeppelin/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
@@ -187,7 +187,7 @@ contract LiquidUnstakePool is
         emit Withdraw(msg.sender, _receiver, _owner, ETHToSend, shares);
     }
 
-    /// @dev Overrided to return ETH and mpETH for shares
+    /// @dev Overridden to return ETH and mpETH for shares
     /// @return ETHToSend ETH sent to user. Don't includes mpETH sent
     function redeem(
         uint256 _shares,

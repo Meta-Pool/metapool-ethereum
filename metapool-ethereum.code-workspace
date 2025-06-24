@@ -1,0 +1,26 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "solidity.compileUsingRemoteVersion": "v0.8.4+commit.c7e474f2",
+        "solidity.defaultCompiler": "remote",
+        "solidity.packageDefaultDependenciesContractsDirectory": "contracts",
+        "solidity.packageDefaultDependenciesDirectory": "node_modules",
+        "solidity.remappings": [
+            "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+            "@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/"
+        ],
+        "solidity.formatter": "prettier",
+        "solidity.enableLocalNodeCompiler": false
+    },
+    "extensions": {
+        "recommendations": [
+            "JuanBlanco.solidity",
+            "ms-vscode.vscode-typescript-next",
+            "esbenp.prettier-vscode"
+        ]
+    }
+}
