@@ -72,11 +72,8 @@ contract LiquidUnstakePool is
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() { _disableInitializers(); }
-
-    /// @notice After mpETH exploit on block 22720818 (2025-06-17), the mpETH contract was replaced.
-    function updateStakedEthToken(address payable _staking) public onlyOwner {
-        STAKING = _staking;
+    constructor() {
+        _disableInitializers();
     }
 
     function initialize(

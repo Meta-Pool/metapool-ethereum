@@ -59,18 +59,8 @@ contract Withdrawal is OwnableUpgradeable {
     receive() external payable {}
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() { _disableInitializers(); }
-
-    /// @notice After mpETH exploit on block 22720818 (2025-06-17), the mpETH contract was replaced.
-    function updateMPETHToken(address payable _mpETH) public onlyOwner {
-        mpETH = _mpETH;
-    }
-
-    function removePendingWithdraw(address _user) external onlyOwner {
-        withdrawRequest memory _withdrawR = pendingWithdraws[_user];
-        if (_withdrawR.amount == 0) revert UserDontHavePendingWithdraw(_user);
-        totalPendingWithdraw -= _withdrawR.amount;
-        delete pendingWithdraws[_user];
+    constructor() {
+        _disableInitializers();
     }
 
     function initialize(address payable _mpETH) external initializer {

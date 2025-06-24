@@ -4,6 +4,7 @@ import * as fs from "fs"
 
 require("dotenv").config()
 const NETWORK = process.env.NETWORK || "sepolia"
+console.log(`Using network: ${NETWORK}`)
 require("dotenv").config({ path: `.env.${NETWORK}` })
 
 const TESTNETS = ["sepolia", "hardhat"]
