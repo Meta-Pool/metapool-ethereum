@@ -14,7 +14,8 @@
     "LiquidUnstakePoolImpl": "0xcadD976AE3a04352B4Ab28865AF07AD2c366D675",
     "WithdrawalProxy": "0xE55E5fDe6C25ac4AD75D867817D2d8a45836Af49",
     "WithdrawalImpl": "0xe3355FBBF8B85EbCE83C5E9e846818b82B833cd9",
-    "MultisigProxyAdmin": "0x24D9664Ba8384D94499d6698ab285b69E879D971"
+    "MultisigProxyAdmin": "0x24D9664Ba8384D94499d6698ab285b69E879D971",
+    "MultiTransfer": "0xeeb074316a4b5e45568F15382f91C661844c3E69"
   },
   "holesky": {
     "StakingProxy": "0xeeb074316a4b5e45568F15382f91C661844c3E69",
@@ -30,6 +31,9 @@
     "LiquidUnstakePoolProxy": "0x16bca96c9cdB63Adf285410682A9d2b76fE6c17f",
     "LiquidUnstakePoolImpl": "0x52449dA012fE3D6f772f1b1350a2b0D4847546E5",
     "WithdrawalProxy": "0xfe3A216FC7f03704fB5CB485A64259E6a78547e8",
-    "WithdrawalImpl": "0xdB4d4542a0B59Df9674a2b42E87768E777c831c9"
+    "WithdrawalImpl": "0xdB4d4542a0B59Df9674a2b42E87768E777c831c9",
+    "StakingV2Proxy": "0x78B47682D9f79f72cEE0Df160254Cd05266fdE57",
+    "StakingV2Impl": "0x2c460d3d3c416De1232989cea94Ce8B088Da980d",
+    "MultiTransfer": "0xf045b9f6769D166B01aB4A0c790AB978F32f9B69"
   }
 }
