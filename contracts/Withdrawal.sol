@@ -66,6 +66,13 @@ contract Withdrawal is OwnableUpgradeable {
         mpETH = _mpETH;
     }
 
+    function removePendingWithdraw(address _user) external onlyOwner {
+        withdrawRequest memory _withdrawR = pendingWithdraws[_user];
+        if (_withdrawR.amount == 0) revert UserDontHavePendingWithdraw(_user);
+        totalPendingWithdraw -= _withdrawR.amount;
+        delete pendingWithdraws[_user];
+    }
+
     function initialize(address payable _mpETH) external initializer {
         require(address(this).balance == 0, "Error initialize with no zero balance");
         __Ownable_init();
