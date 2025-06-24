@@ -21,7 +21,7 @@ contract LiquidUnstakePool is
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     address public treasury;
-    address payable public STAKING;
+    address payable public stakedEthToken;
     uint256 public ethBalance;
     uint256 public targetLiquidity;
     uint256 public minETHPercentage;
@@ -63,7 +63,7 @@ contract LiquidUnstakePool is
     error InvalidSwapFees();
 
     modifier onlyStaking() {
-        if (msg.sender != STAKING) revert NotAuthorized(msg.sender, STAKING);
+        if (msg.sender != stakedEthToken) revert NotAuthorized(msg.sender, stakedEthToken);
         _;
     }
 
@@ -71,8 +71,16 @@ contract LiquidUnstakePool is
         if (_amount < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _amount);
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() { _disableInitializers(); }
+
+    /// @notice After mpETH exploit on block 22720818 (2025-06-17), the mpETH contract was replaced.
+    function updateStakedEthToken(address payable _stakedEthToken) public onlyOwner {
+        stakedEthToken = _stakedEthToken;
+    }
+
     function initialize(
-        address payable _staking,
+        address payable _stakedEthToken,
         IERC20MetadataUpgradeable _weth,
         address _treasury
     ) external initializer {
@@ -82,7 +90,7 @@ contract LiquidUnstakePool is
         __ERC20_init("MetaETHLP", "mpETH/ETH");
         __Ownable_init();
         __ReentrancyGuard_init();
-        STAKING = _staking;
+        stakedEthToken = _stakedEthToken;
         treasury = _treasury;
         updateTargetLiquidity(30 ether);
         updateMinETHPercentage(5000);
@@ -117,7 +125,7 @@ contract LiquidUnstakePool is
     function totalAssets() public view override returns (uint256) {
         return
             ethBalance +
-            Staking(STAKING).convertToAssets(Staking(STAKING).balanceOf(address(this)));
+            Staking(stakedEthToken).convertToAssets(Staking(stakedEthToken).balanceOf(address(this)));
     }
 
     /// @notice Add liquidity with WETH
@@ -177,11 +185,11 @@ contract LiquidUnstakePool is
         uint256 poolPercentage = (_assets * 1 ether) / totalAssets();
         if (poolPercentage == 0) revert AssetsTooLow();
         uint256 ETHToSend = (poolPercentage * ethBalance) / 1 ether;
-        uint256 mpETHToSend = (poolPercentage * Staking(STAKING).balanceOf(address(this))) /
+        uint256 mpETHToSend = (poolPercentage * Staking(stakedEthToken).balanceOf(address(this))) /
             1 ether;
         _burn(_owner, shares);
         ethBalance -= ETHToSend;
-        IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
+        IERC20Upgradeable(stakedEthToken).safeTransfer(_receiver, mpETHToSend);
         payable(_receiver).sendValue(ETHToSend);
         emit RemoveLiquidity(msg.sender, _owner, shares, ETHToSend, mpETHToSend);
         emit Withdraw(msg.sender, _receiver, _owner, ETHToSend, shares);
@@ -198,11 +206,11 @@ contract LiquidUnstakePool is
         uint256 poolPercentage = (_shares * 1 ether) / totalSupply();
         if (poolPercentage == 0) revert SharesTooLow();
         ETHToSend = (poolPercentage * ethBalance) / 1 ether;
-        uint256 mpETHToSend = (poolPercentage * Staking(STAKING).balanceOf(address(this))) /
+        uint256 mpETHToSend = (poolPercentage * Staking(stakedEthToken).balanceOf(address(this))) /
             1 ether;
         _burn(_owner, _shares);
         ethBalance -= ETHToSend;
-        IERC20Upgradeable(STAKING).safeTransfer(_receiver, mpETHToSend);
+        IERC20Upgradeable(stakedEthToken).safeTransfer(_receiver, mpETHToSend);
         payable(_receiver).sendValue(ETHToSend);
         emit RemoveLiquidity(msg.sender, _owner, _shares, ETHToSend, mpETHToSend);
         emit Withdraw(msg.sender, _receiver, _owner, ETHToSend, _shares);
@@ -214,7 +222,7 @@ contract LiquidUnstakePool is
         uint256 _amount,
         uint256 _minOut
     ) external nonReentrant returns (uint256) {
-        address payable staking = STAKING;
+        address payable staking = stakedEthToken;
         (uint256 amountOut, uint256 feeAmount) = getAmountOut(_amount);
         if (amountOut < _minOut) revert SwapMinOut(_minOut, amountOut);
         uint256 feeToTreasury = (feeAmount * treasuryFee) / 10000;
@@ -233,7 +241,7 @@ contract LiquidUnstakePool is
     function getAmountOut(
         uint256 _amountIn
     ) public view returns (uint256 amountOut, uint256 feeAmount) {
-        address payable staking = STAKING;
+        address payable staking = stakedEthToken;
         uint16 feeRange = maxFee - minFee;
         amountOut = Staking(staking).convertToAssets(_amountIn);
         uint256 reservesAfterSwap = ethBalance.sub(amountOut, "Not enough ETH");
@@ -254,7 +262,7 @@ contract LiquidUnstakePool is
         if (_requestedETH > availableETH)
             revert RequestedETHReachMinProportion(_requestedETH, availableETH);
         ethBalance -= _requestedETH;
-        Staking(STAKING).depositETH{value: _requestedETH}(address(this));
+        Staking(stakedEthToken).depositETH{value: _requestedETH}(address(this));
         emit SendETHForValidator(block.timestamp, _requestedETH);
     }
 
@@ -262,7 +270,7 @@ contract LiquidUnstakePool is
     function swapETHFormpETH(
         address _to
     ) external payable nonReentrant onlyStaking returns (uint256) {
-        address payable staking = STAKING;
+        address payable staking = stakedEthToken;
         uint256 mpETHToSend = Staking(staking).previewDeposit(msg.value);
         IERC20Upgradeable(staking).safeTransfer(_to, mpETHToSend);
         ethBalance += msg.value;
