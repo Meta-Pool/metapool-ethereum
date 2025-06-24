@@ -102,6 +102,7 @@ const deployStakingV2 = async (
 ) => {
   updater = updater || deployer.address
   activator = activator || deployer.address
+  trustedDistributor = trustedDistributor || deployer.address
   const [Staking] = await Promise.all([ethers.getContractFactory("Staking")])
 
   const staking = await upgrades.deployProxy(

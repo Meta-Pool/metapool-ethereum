@@ -13,6 +13,7 @@ const mnemonic = fs.readFileSync(path.join(os.homedir(), ".config/mp-eth-mnemoni
 export = {
   BLOCK_NUMBER: process.env.BLOCK_NUMBER ? parseInt(process.env.BLOCK_NUMBER) : null,
   BOT_ADDRESS: process.env.BOT_ADDRESS,
+  DISTRIBUTOR_ADDRESS: process.env.DISTRIBUTOR_ADDRESS,
   NETWORK,
   ETHERSCAN_API_KEY: process.env.ETHERSCAN_API_KEY,
   TARGET: process.env.TARGET,
