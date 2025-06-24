@@ -28,7 +28,7 @@ async function main() {
   } else {
     // Initial supply, taken from block 22720818
     console.log("[NOTICE] Using StakingV1 hardcoded values for totalAssets and totalSupply");
-    totalAssetsV1 = BigNumber.from("898044573821213370105"); // 898.04 ETH
+    totalAssetsV1 = BigNumber.from("899477138168463500000"); // 899.47 ETH
     totalSupplyV1 = BigNumber.from("814293240537538091984"); // 814.29 ETH
   }
 
