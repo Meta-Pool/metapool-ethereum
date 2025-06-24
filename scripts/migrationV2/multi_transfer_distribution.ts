@@ -133,6 +133,8 @@ async function main() {
   const StakingV2ProxyAddress = NETWORK_DEPLOYED_ADDRESSES['StakingV2Proxy'];
 
   console.log("MultiTransferAddress: ", MultiTransferAddress);
+  console.log("stETH address: ", StakingV2ProxyAddress);
+
   const MultiTransfer = await hre.ethers.getContractAt("MultiTransfer", MultiTransferAddress);
   const StakingV2Proxy = await hre.ethers.getContractAt("Staking", StakingV2ProxyAddress);
 
