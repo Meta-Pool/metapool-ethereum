@@ -134,7 +134,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         updateRewardsFee(500);
         treasury = _treasury;
         depositContract = IDeposit(_depositContract);
-        submitReportUnlockTime = uint64(block.timestamp);
+        submitReportUnlockTime = uint64(block.timestamp) + SUBMIT_REPORT_TIMELOCK;
         acceptableUnderlyingChange = 100; // 1%
 
         // No trace on storage.
