@@ -13,7 +13,7 @@ import "./interfaces/IWETH.sol";
 import "./LiquidUnstakePool.sol";
 import "./Withdrawal.sol";
 
-/// @title ETH staking manager and mpETH staking token
+/// @title ETH staking manager and mpETH staking token (Version 2)
 /// @author MetaPool
 /// @notice Stake ETH and get mpETH as the representation of the portion owned through all the validators
 /// @dev Implements ERC4626 and adapts some functions to simulate ETH native token as asset instead of an ERC20. Also allows the deposit of WETH
@@ -101,6 +101,9 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() { _disableInitializers(); }
+
     function initialize(
         address _liquidPool,
         address _withdrawal,
@@ -108,14 +111,20 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         IERC20MetadataUpgradeable _weth,
         address _treasury,
         address _updater,
-        address _activator
+        address _activator,
+
+        // @dev After exploit on block 22720818 (2025-06-17),
+        // the mpETH tokens at this block will be replaced with this contract token.
+        address _trustedDistributor,
+        uint256 _initialTokensToDistribute,
+        uint256 _totalUnderlying
     ) external initializer {
         if (_treasury == address(0)) revert ZeroAddress("treasury");
         if (_depositContract == address(0)) revert ZeroAddress("depositContract");
         require(_weth.decimals() == 18, "wNative token error, implementation for 18 decimals");
         require(address(this).balance == 0, "Error initialize with no zero balance");
         __ERC4626_init(IERC20Upgradeable(_weth));
-        __ERC20_init("MetaPoolETH", "mpETH");
+        __ERC20_init("MetaPool Staking Pool ETH", "spETH");
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(UPDATER_ROLE, _updater);
@@ -125,8 +134,13 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         updateRewardsFee(500);
         treasury = _treasury;
         depositContract = IDeposit(_depositContract);
-        submitReportUnlockTime = uint64(block.timestamp);
+        submitReportUnlockTime = uint64(block.timestamp) + SUBMIT_REPORT_TIMELOCK;
         acceptableUnderlyingChange = 100; // 1%
+
+        // No trace on storage.
+        _mint(_trustedDistributor, _initialTokensToDistribute);
+        totalUnderlying = _totalUnderlying;
+        whitelistEnabled = true;
     }
 
     /// @dev Needed to receive ETH from WETH deposits and Withdrawal for new validators
@@ -287,7 +301,7 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
     ) external onlyRole(ACTIVATOR_ROLE) {
         if (_depositContractRoot != depositContract.get_deposit_root())
             revert DepositRootMismatch();
-        uint32 nodesLength = uint32(_nodes.length);
+        uint256 nodesLength = uint256(_nodes.length);
         {
             uint256 requiredBalance = nodesLength * 32 ether;
             uint256 stakingBalance = address(this).balance;
@@ -342,6 +356,18 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         return _shares;
     }
 
+    /// @notice Mint WETH
+    function mint(uint256 _shares, address _receiver) public virtual override returns (uint256) {
+        require(_shares <= maxMint(_receiver), "ERC4626: mint more than max");
+
+        uint256 assets = previewMint(_shares);
+        IERC20Upgradeable(asset()).safeTransferFrom(msg.sender, address(this), assets);
+        IWETH(asset()).withdraw(assets);
+        _deposit(_msgSender(), _receiver, assets, _shares);
+
+        return assets;
+    }
+
     /// @notice Deposit ETH
     /// @dev Equivalent to deposit function but for native token
     function depositETH(address _receiver) public payable returns (uint256) {
@@ -370,8 +396,10 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
 
         if (msg.sender != liquidUnstakePool) {
             uint256 sharesToTreasury = (_shares * depositFee) / 10000;
-            _transfer(address(this), treasury, sharesToTreasury);
-            sharesToUser -= sharesToTreasury;
+            if (sharesToTreasury > 0) {
+                _transfer(address(this), treasury, sharesToTreasury);
+                sharesToUser -= sharesToTreasury;
+            }
         }
 
         _transfer(address(this), _receiver, sharesToUser);

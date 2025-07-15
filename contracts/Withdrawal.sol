@@ -58,6 +58,11 @@ contract Withdrawal is OwnableUpgradeable {
 
     receive() external payable {}
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(address payable _mpETH) external initializer {
         require(address(this).balance == 0, "Error initialize with no zero balance");
         __Ownable_init();
@@ -96,7 +101,7 @@ contract Withdrawal is OwnableUpgradeable {
 
     /// @notice Queue ETH withdrawal
     /// @dev Multiples withdrawals are accumulative, but will restart the epoch unlock
-    /// Shares used for this request should be already bruned in the calling function (Staking._withdraw)
+    /// Shares used for this request should be already burned in the calling function (Staking._withdraw)
     /// @param _amountOut ETH amount to withdraw
     /// @param _user Owner of the withdrawal
     function requestWithdraw(

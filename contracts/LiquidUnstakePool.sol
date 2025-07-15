@@ -71,6 +71,11 @@ contract LiquidUnstakePool is
         if (_amount < MIN_DEPOSIT) revert DepositTooLow(MIN_DEPOSIT, _amount);
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(
         address payable _staking,
         IERC20MetadataUpgradeable _weth,
