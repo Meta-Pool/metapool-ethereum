@@ -490,6 +490,19 @@ describe("Staking", () => {
       await withdrawal.setWithdrawalsStartEpoch(0)
       await staking.redeem(0, owner.address, owner.address)
     })
+
+    it("redeem through ERC4626Router creates a claimable request for the receiver", async () => {
+      await withdrawal.setWithdrawalsStartEpoch(0)
+      const router = await (await ethers.getContractFactory("ERC4626Router")).deploy()
+      const value = toEthers(1)
+      await staking.addToWhitelist([user.address])
+      await staking.connect(user).depositETH(user.address, { value })
+      const shares = await staking.balanceOf(user.address)
+      await staking.connect(user).approve(router.address, shares)
+      await router.connect(user).redeemFromVault(staking.address, user.address, shares, 0)
+      expect((await withdrawal.pendingWithdraws(user.address)).amount).to.be.gt(0)
+      expect((await withdrawal.pendingWithdraws(router.address)).amount).to.equal(0)
+    })
   })
 
   describe("Privileged functions", () => {
