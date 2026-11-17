@@ -491,13 +491,24 @@ describe("Staking", () => {
       await staking.redeem(0, owner.address, owner.address)
     })
 
-    it("maxWithdraw and maxRedeem never exceed the realized totalUnderlying", async () => {
+    it("maxWithdraw and maxRedeem exclude estimated unreported rewards", async () => {
+      await withdrawal.setWithdrawalsStartEpoch(0)
       await staking.connect(user).depositETH(user.address, { value: toEthers(1) })
+      // set the maximum allowed estimated rewards rate and let time pass without a report
+      const maxRate = (await staking.totalAssets()).div(30000000)
+      await staking.connect(updater).updateEstimatedRewardsPerSecond(maxRate)
+      await time.increase(30 * 24 * 3600)
+
       const totalUnderlying = await staking.totalUnderlying()
+      // estimated rewards make totalAssets exceed the realized underlying
+      expect(await staking.totalAssets()).to.be.gt(totalUnderlying)
+
       expect(await staking.maxWithdraw(user.address)).to.be.lte(totalUnderlying)
-      expect(await staking.maxRedeem(user.address)).to.be.lte(
-        await staking.convertToShares(totalUnderlying)
-      )
+      const maxRedeem = await staking.maxRedeem(user.address)
+      expect(await staking.previewRedeem(maxRedeem)).to.be.lte(totalUnderlying)
+
+      // redeeming the max must not underflow totalUnderlying
+      await staking.connect(user).redeem(maxRedeem, user.address, user.address)
     })
   })
 
