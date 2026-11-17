@@ -276,14 +276,21 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         uint256 maxDiff = (totalAssets() * acceptableUnderlyingChange) / 10000;
         if (diff > maxDiff) revert UpdateTooBig(totalAssets(), newTotalUnderlying, diff, maxDiff);
 
+        totalUnderlying = newTotalUnderlying;
+
         // If the balance didn't increase there's no reward to get fees
         if (balanceIncremented) {
             uint256 assetsAsFee = (diff * rewardsFee) / 10000;
-            uint256 shares = previewDeposit(assetsAsFee);
+            // Price the fee shares after the rewards are credited, so the treasury receives
+            // exactly `assetsAsFee` of value: shares = fee * supply / (totalAssets - fee)
+            uint256 assetsAfter = totalAssets();
+            uint256 supply = totalSupply();
+            uint256 shares = (supply == 0 || assetsAfter <= assetsAsFee)
+                ? previewDeposit(assetsAsFee)
+                : MathUpgradeable.mulDiv(assetsAsFee, supply, assetsAfter - assetsAsFee);
             _mint(treasury, shares);
         }
 
-        totalUnderlying = newTotalUnderlying;
         updateEstimatedRewardsPerSecond(_estimatedRewardsPerSecond);
         emit ReportEpochs(_epochsReport, newTotalUnderlying);
     }

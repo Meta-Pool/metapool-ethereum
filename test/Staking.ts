@@ -403,6 +403,7 @@ describe("Staking", () => {
     })
 
     it("Report with rewards as 1% of totalUnderlying and mint mpETH for treasury", async () => {
+      await staking.addToWhitelist([owner.address])
       await staking.connect(owner).depositETH(owner.address, { value: depositValue })
       await staking.connect(activator).pushToBeacon(
         [...Array(newNodes).keys()].map((_) => getValidator(withdrawalCredentials)),
@@ -412,8 +413,11 @@ describe("Staking", () => {
       )
       const stakingFee = await staking.rewardsFee()
       const expectedFee = onePercent.mul(stakingFee).div(10000)
+      await time.increaseTo(await staking.submitReportUnlockTime())
       await staking.connect(updater).reportEpochs(defaultReport, 0)
-      expect(await staking.balanceOf(treasury.address)).to.eq(expectedFee)
+      // fee shares are priced after the rewards are credited: the treasury holds exactly the fee in assets
+      const treasuryShares = await staking.balanceOf(treasury.address)
+      expect(await staking.convertToAssets(treasuryShares)).to.be.closeTo(expectedFee, 10)
       expect(await staking.totalUnderlying()).to.eq(newNodesBalance)
       expect(await staking.totalAssets()).to.eq(newNodesBalance)
       // Check: mpETHPrice, estimatedRewardsPerSecond
