@@ -495,6 +495,7 @@ describe("Staking", () => {
       await withdrawal.setWithdrawalsStartEpoch(0)
       const router = await (await ethers.getContractFactory("ERC4626Router")).deploy()
       const value = toEthers(1)
+      await staking.addToWhitelist([user.address])
       await staking.connect(user).depositETH(user.address, { value })
       const shares = await staking.balanceOf(user.address)
       await staking.connect(user).approve(router.address, shares)
