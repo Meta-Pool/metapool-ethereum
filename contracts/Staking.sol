@@ -162,6 +162,19 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         }
     }
 
+    /// @dev Cap by realized underlying: estimated (unreported) rewards cannot be withdrawn
+    function maxWithdraw(address owner) public view override returns (uint256) {
+        uint256 byShares = super.maxWithdraw(owner);
+        return byShares < totalUnderlying ? byShares : totalUnderlying;
+    }
+
+    /// @dev Cap by realized underlying: estimated (unreported) rewards cannot be redeemed
+    function maxRedeem(address owner) public view override returns (uint256) {
+        uint256 byShares = super.maxRedeem(owner);
+        uint256 byUnderlying = convertToShares(totalUnderlying);
+        return byShares < byUnderlying ? byShares : byUnderlying;
+    }
+
     function toggleWhitelistEnabled() external onlyRole(DEFAULT_ADMIN_ROLE) {
         whitelistEnabled = !whitelistEnabled;
     }
