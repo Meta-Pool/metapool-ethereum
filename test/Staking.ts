@@ -490,6 +490,15 @@ describe("Staking", () => {
       await withdrawal.setWithdrawalsStartEpoch(0)
       await staking.redeem(0, owner.address, owner.address)
     })
+
+    it("maxWithdraw and maxRedeem never exceed the realized totalUnderlying", async () => {
+      await staking.connect(user).depositETH(user.address, { value: toEthers(1) })
+      const totalUnderlying = await staking.totalUnderlying()
+      expect(await staking.maxWithdraw(user.address)).to.be.lte(totalUnderlying)
+      expect(await staking.maxRedeem(user.address)).to.be.lte(
+        await staking.convertToShares(totalUnderlying)
+      )
+    })
   })
 
   describe("Privileged functions", () => {
