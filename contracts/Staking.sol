@@ -442,7 +442,9 @@ contract Staking is Initializable, ERC4626Upgradeable, AccessControlUpgradeable 
         }
         _burn(owner, shares);
         totalUnderlying -= assets;
-        Withdrawal(withdrawal).requestWithdraw(assets, caller, receiver);
+        // Register under `receiver`: it is the account that claims and gets paid.
+        // Using `caller` strands funds when the caller is a contract such as ERC4626Router.
+        Withdrawal(withdrawal).requestWithdraw(assets, receiver, receiver);
 
         emit Withdraw(caller, receiver, owner, assets, shares);
     }
