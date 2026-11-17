@@ -493,6 +493,7 @@ describe("Staking", () => {
 
     it("maxWithdraw and maxRedeem exclude estimated unreported rewards", async () => {
       await withdrawal.setWithdrawalsStartEpoch(0)
+      await staking.addToWhitelist([user.address])
       await staking.connect(user).depositETH(user.address, { value: toEthers(1) })
       // set the maximum allowed estimated rewards rate and let time pass without a report
       const maxRate = (await staking.totalAssets()).div(30000000)
@@ -507,8 +508,11 @@ describe("Staking", () => {
       const maxRedeem = await staking.maxRedeem(user.address)
       expect(await staking.previewRedeem(maxRedeem)).to.be.lte(totalUnderlying)
 
-      // redeeming the max must not underflow totalUnderlying
-      await staking.connect(user).redeem(maxRedeem, user.address, user.address)
+      // redeeming (almost) the max must not underflow totalUnderlying.
+      // A small margin is kept because the cap shrinks every second as estimated rewards accrue.
+      const toRedeem = maxRedeem.sub(maxRedeem.div(1000))
+      await staking.connect(user).redeem(toRedeem, user.address, user.address)
+      expect((await withdrawal.pendingWithdraws(user.address)).amount).to.be.lte(totalUnderlying)
     })
   })
 
